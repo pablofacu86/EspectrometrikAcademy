@@ -41,7 +41,7 @@ DATASETS = [
      "Follow the citation given in the OSSL manual (soilspectroscopy.github.io/ossl-manual)."),
     # ------------------------------------------------------------------ MIR
     ("OliveOil — FT-MIR of extra-virgin olive oils (4 countries)", "FT-MIR", "Classification",
-     "120 spectra (570 points) of olive oils from Greece, Italy, Portugal and Spain. A classic authentication problem — it is one of the examples included in this app.",
+     "120 spectra (570 points) of olive oils from Greece, Italy, Portugal and Spain. A classic authentication problem: PCA, SIMCA and PLS-DA.",
      "https://www.timeseriesclassification.com/description.php?Dataset=OliveOil",
      "Tapp, H. S., Defernez, M. & Kemsley, E. K. (2003). FTIR spectroscopy and multivariate analysis can distinguish the geographic origin of extra virgin olive oils. J. Agric. Food Chem., 51, 6110–6115."),
     ("Coffee — FT-IR of instant coffee (Arabica vs Robusta)", "FT-MIR", "Classification",

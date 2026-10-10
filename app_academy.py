@@ -1602,44 +1602,6 @@ class _ArchivoEjemplo:
         return 0
 
 
-EJEMPLOS = {
-    "🍷 Wine — 13 chemical variables, 3 cultivars (table · classification)": dict(
-        file="Wine_chemical_classification_178x13.xlsx", modo="tab", clase="cultivar", y=None,
-        texto="178 Italian wines analysed for 13 chemical variables (alcohol, phenols, colour intensity…). "
-              "Classic first dataset for PCA, LDA, PLS-DA and SIMCA.",
-        cita="Aeberhard, S. & Forina, M. (1992). Wine [Dataset]. UCI Machine Learning Repository. "
-             "https://doi.org/10.24432/C5PC7J (CC BY 4.0)."),
-    "🌸 Iris — 4 flower measurements, 3 species (table · classification)": dict(
-        file="Iris_tabular_classification_150x4.xlsx", modo="tab", clase="species", y=None,
-        texto="Fisher's 150 iris flowers: the smallest dataset to see classes separate (setosa) and overlap (versicolor/virginica).",
-        cita="Fisher, R. A. (1936). Iris [Dataset]. UCI Machine Learning Repository. https://doi.org/10.24432/C56C76 (CC BY 4.0)."),
-    "🩺 Diabetes — 10 clinical variables → disease progression (table · regression)": dict(
-        file="Diabetes_clinical_regression_442x10.xlsx", modo="tab", clase=None, y="progresion",
-        texto="442 patients, 10 baseline clinical variables (age, BMI, blood pressure, serum measurements) and a measure of disease "
-              "progression one year later. A tabular regression example.",
-        cita="Efron, B., Hastie, T., Johnstone, I. & Tibshirani, R. (2004). Least angle regression. Annals of Statistics, 32(2), 407–499."),
-    "🫒 Olive oil — FT-MIR, 4 countries (spectra · classification)": dict(
-        file="Olive_oil_FTMIR_120_classification_country.xlsx", modo="spec", clase="Country", y=None,
-        texto="120 extra-virgin olive oils from Greece, Italy, Portugal and Spain measured by FT-MIR (about 570 points). "
-              "Geographic-origin authentication: PCA, SIMCA, PLS-DA.",
-        cita="Tapp, H. S., Defernez, M. & Kemsley, E. K. (2003). FTIR spectroscopy and multivariate analysis can distinguish the "
-             "geographic origin of extra virgin olive oils. J. Agric. Food Chem., 51(21), 6110–6115. Data as distributed in the "
-             "UCR/UEA time-series classification archive (dataset 'OliveOil')."),
-    "🌱 Soil — NIR, organic carbon (spectra · regression)": dict(
-        file="Soil_SOC_NIR_285_regression.xlsx", modo="spec", clase=None, y="SOC_g_kg",
-        texto="285 soil samples (France), laboratory NIR 1100–2498 nm, reference: soil organic carbon (g/kg). A typical NIR calibration. "
-              "Note: the three depths of each sampling point are similar, so random CV is slightly optimistic.",
-        cita="Cambou, A., Cardinael, R., Kouakoua, E., Villeneuve, M., Durand, C. & Barthès, B. G. (2016). Prediction of soil organic "
-             "carbon stock using visible and near infrared reflectance spectroscopy (VNIRS) in the field. Geoderma, 261, 151–159. "
-             "https://doi.org/10.1016/j.geoderma.2015.07.007"),
-    "💊 Raman tablets — simulated (spectra · classification + regression)": dict(
-        file="Raman_simulated_75_class_and_regression.xlsx", modo="spec", clase="formulacion", y="paracetamol_pct",
-        texto="75 simulated Raman spectra of tablets (3 formulations) with the paracetamol content. Simulated for teaching: fluorescence "
-              "baseline, noise and cosmic spikes included, so you can practise baseline correction.",
-        cita="Simulated data created for this app (no citation required)."),
-}
-
-
 with st.sidebar:
     _logo_b64 = _img_b64("logo_espectrometrika_academy.png", max_h=190, paleta=True)
     st.markdown(f"""
@@ -1734,31 +1696,9 @@ with st.sidebar:
                 else:
                     st.error(_detalle)
 
-    with st.expander("🎓 Try an example dataset", expanded=(st.session_state.get("X") is None)):
-        st.caption("Real or simulated datasets included with the app, already set up (IDs, classes, reference values). "
-                   "Ideal to learn the workflow in a few minutes.")
-        _ej_nombre = st.selectbox("Example", list(EJEMPLOS.keys()), key="ejemplo_sel", label_visibility="collapsed",
-                                  help="Pick a dataset and press the button. It replaces whatever is loaded now.")
-        _ej = EJEMPLOS[_ej_nombre]
-        st.caption(_ej["texto"])
-        if st.button("📥 Load this example", key="ejemplo_btn", use_container_width=True):
-            _ruta_ej = os.path.join(os.path.dirname(__file__), "examples", _ej["file"])
-            try:
-                with open(_ruta_ej, "rb") as _f:
-                    _bytes_ej = _f.read()
-                st.session_state["_ejemplo"] = {"name": _ej["file"], "bytes": _bytes_ej, "titulo": _ej_nombre}
-                st.session_state["_forzar_modo"] = ("Tabular variables (metabolomics, clinical, other)"
-                                                    if _ej["modo"] == "tab" else "Spectra / signals")
-                _fid = "ej_" + _ej["file"]
-                st.session_state[f"opcion_clase_{_fid}"] = _ej["clase"] or "(none)"
-                st.session_state[f"opcion_valory_{_fid}"] = _ej["y"] or "(none)"
-                st.rerun()
-            except FileNotFoundError:
-                st.error("Example file not found — make sure the 'examples' folder is next to the app.")
-        _ej_act = st.session_state.get("_ejemplo")
-        if _ej_act:
-            st.success(f"Loaded: {_ej_act['titulo']}")
-            st.caption("📚 **Source / how to cite:** " + EJEMPLOS[_ej_act["titulo"]]["cita"])
+    with st.expander("🎓 Need data to practise?", expanded=(st.session_state.get("X") is None)):
+        st.caption("Open the **📚 Learn → Public datasets** tab: it lists free tables and spectra (wine, soil, olive oil, "
+                   "Raman, metabolomics…) with a direct link and the citation of each one. Download a file there and load it here.")
 
     st.header("1. Load data")
     if "_forzar_modo" in st.session_state:      # set by "Load a saved project"
@@ -2268,8 +2208,8 @@ if _abierta(tabs[0]):
                 st.session_state.clear()
                 st.rerun()
         else:
-            st.info("👈 To get started, press **Try an example dataset** in the left-hand panel, or upload your own file "
-                    "(spectra or a table, CSV or Excel).")
+            st.info("👈 To get started, upload your own file in the left-hand panel (spectra or a table, CSV or Excel), "
+                    "or find free data to practise in **Learn → Public datasets**.")
             gu.what_next("home", key="next_home_vacio")
             c_a, c_b = st.columns(2)
             with c_a:
@@ -2358,7 +2298,7 @@ if not hay_datos():
     # before their real logic below (which assumes data exists).
     for _k_vacia in sorted(k for k in tabs if 1 <= k <= 16 or k == 30):
         with tabs[_k_vacia]:
-            st.info("📁 Load your data in the left-hand panel — or press **Try an example dataset** — to get started.")
+            st.info("📁 Load your data in the left-hand panel — or find free data in **Learn → Public datasets** — to get started.")
             gu.what_next("home", key=f"next_vacio_{_k_vacia}")
     st.stop()
 
