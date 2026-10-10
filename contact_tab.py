@@ -7,7 +7,7 @@ from i18n import T
 TEMAS = [
     "Question about chemometrics (methods, interpretation of results)",
     "Help with my own data / analysis",
-    "Professional advice: building my own models / consulting",
+    "Help with my models / developing new models",
     "Request a meeting or online consultation",
     "Training, workshop or course request",
     "Collaboration or research project",
@@ -31,10 +31,9 @@ def render(enviar_fn, email):
 """, unsafe_allow_html=True)
 
     with st.container(border=True):
-        st.markdown("#### Need advice to build your own models?")
+        st.markdown("#### Want a hand with your models?")
         st.markdown(
-            "Espectrometrika Academy is free for learning. If you need to go further — for your company, laboratory or "
-            "research project — I am available for professional advice and tailor-made work:")
+            "If we can help you with your models, advise you, or help you develop new ones, do not hesitate to write to us:")
         k1, k2 = st.columns(2)
         with k1:
             st.markdown(
@@ -45,8 +44,6 @@ def render(enviar_fn, email):
             st.markdown(
                 "- **Reviewing a model you already have**: overfitting, outliers, applicability domain, uncertainty\n"
                 "- **Training and workshops** in chemometrics for your team")
-        st.caption("Tell me about your case using the form below (topic: *Professional advice*) or write by e-mail. "
-                   "The first conversation to understand what you need carries no commitment.")
 
     c1, c2 = st.columns([3, 2])
     with c2:
