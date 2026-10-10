@@ -7,6 +7,7 @@ from i18n import T
 TEMAS = [
     "Question about chemometrics (methods, interpretation of results)",
     "Help with my own data / analysis",
+    "Professional advice: building my own models / consulting",
     "Request a meeting or online consultation",
     "Training, workshop or course request",
     "Collaboration or research project",
@@ -29,11 +30,29 @@ def render(enviar_fn, email):
 </div>
 """, unsafe_allow_html=True)
 
+    with st.container(border=True):
+        st.markdown("#### Need advice to build your own models?")
+        st.markdown(
+            "Espectrometrika Academy is free for learning. If you need to go further — for your company, laboratory or "
+            "research project — I am available for professional advice and tailor-made work:")
+        k1, k2 = st.columns(2)
+        with k1:
+            st.markdown(
+                "- **Developing calibration and classification models** for your own spectral or tabular data "
+                "(NIR, FT-MIR, Raman, NMR, chromatography, metabolomics…)\n"
+                "- **Choosing and validating** the preprocessing, the algorithm and the validation scheme, so that results hold on new samples")
+        with k2:
+            st.markdown(
+                "- **Reviewing a model you already have**: overfitting, outliers, applicability domain, uncertainty\n"
+                "- **Training and workshops** in chemometrics for your team")
+        st.caption("Tell me about your case using the form below (topic: *Professional advice*) or write by e-mail. "
+                   "The first conversation to understand what you need carries no commitment.")
+
     c1, c2 = st.columns([3, 2])
     with c2:
         with st.container(border=True):
             st.markdown("#### Contact details")
-            st.markdown("**Pablo F. Sánchez**  \nINTI — Instituto Nacional de Tecnología Industrial, Argentina")
+            st.markdown("**Pablo Facundo Sánchez**")
             asunto = urllib.parse.quote(T("Espectrometrika Academy — query"))
             cuerpo = urllib.parse.quote(T(
                 "Dear Pablo,\n\nI am writing from Espectrometrika Academy regarding:\n\n"

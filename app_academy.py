@@ -62,7 +62,7 @@ st.set_page_config(
 
 # Copyright footer (fixed at the bottom of every page, also on the Home screen)
 COPYRIGHT_TEXTO = "Espectrometrika Academy · All rights reserved"
-CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "pablofacu.sanchez@gmail.com")   # shown in the Contact tab (mailto link)
+CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "espectrometrika@gmail.com")   # shown in the Contact tab (mailto link)
 EDICION = "Academy"
 i18n.install()                                  # English / Castellano switch (per user session)
 _top_cols = st.columns([6, 2.4])
@@ -5526,7 +5526,16 @@ if _abierta(tabs[15]):
                 "File with the new samples (same format: ID + spectra)",
                 type=["csv", "xlsx", "xls"], key="archivo_prediccion",
             help="Spectra of the samples to predict: first column = sample ID, other columns = the spectral axis (same technique as the model).")
+            _firma_pred = ((nombre_modelo_usar, archivo_nuevo.name, getattr(archivo_nuevo, "size", 0))
+                           if archivo_nuevo is not None else None)
             if archivo_nuevo is not None:
+                if st.button("🔮 Predict", key="pred_btn_run", type="primary",
+                             help="Runs the selected model on the samples of the file above."):
+                    st.session_state["pred_firma_ok"] = _firma_pred
+                if st.session_state.get("pred_firma_ok") != _firma_pred:
+                    st.info("📄 File loaded. Click **Predict** to run the model on these samples "
+                            "(if you change the model or the file, click it again).")
+            if archivo_nuevo is not None and st.session_state.get("pred_firma_ok") == _firma_pred:
                 try:
                     if archivo_nuevo.name.lower().endswith(".csv"):
                         df_nuevo = pd.read_csv(archivo_nuevo, index_col=0)
@@ -6332,12 +6341,44 @@ if _abierta(tabs[11]):
                             f"To reproduce it: in **Preprocessing** {_pasos_txt}; in the model tab choose "
                             f"**{'Cropped spectrum' if _fila_top['Spectrum'] == 'Cropped' else 'Full spectrum (no crop)'}**, "
                             f"variable selection **{_fila_top['Variable selection']}** and algorithm **{_fila_top['Algorithm']}**.")
-                        if _rec_n in _mapa_rec and st.button("🧪 Set up the Preprocessing tab with this recipe", key="scr_btn_prep"):
-                            st.session_state["pret_w_tipo"] = _tipo_run
-                            st.session_state[f"pret_w_a_{_tipo_run}"] = _mapa_rec[_rec_n][0]
-                            st.session_state[f"pret_w_b_{_tipo_run}"] = _mapa_rec[_rec_n][1]
-                            st.session_state["pret_w_orden"] = "A → B (recommended)"
-                            st.success("Done — now open the 🧪 Preprocessing tab and click **Apply**.")
+                        if st.button("🧪 Use this candidate: set up Preprocessing and the model tab", key="scr_btn_prep",
+                                     help="Fills in the Preprocessing steps of this recipe and leaves ONLY this algorithm "
+                                          "(with its variable selection and spectrum choice) selected in the model tab, "
+                                          "so you can train it straight away."):
+                            _hecho = []
+                            if _rec_n in _mapa_rec:
+                                st.session_state["pret_w_tipo"] = _tipo_run
+                                st.session_state[f"pret_w_a_{_tipo_run}"] = _mapa_rec[_rec_n][0]
+                                st.session_state[f"pret_w_b_{_tipo_run}"] = _mapa_rec[_rec_n][1]
+                                st.session_state["pret_w_orden"] = "A → B (recommended)"
+                                _hecho.append("Preprocessing")
+                            _alg_top, _vs_top = str(_fila_top["Algorithm"]), str(_fila_top["Variable selection"])
+                            _pref_m = {"Classification": "clf", "Regression": "reg", "SIMCA": "simca"}.get(_tarea_res)
+                            _ok_alg = False
+                            if _tarea_res == "Classification" and _alg_top in mu.crear_clasificadores():
+                                st.session_state["ac_clf_models"] = [_alg_top]
+                                _ok_alg = True
+                            elif _tarea_res == "Regression" and _alg_top in mu.crear_regresores():
+                                st.session_state["ac_reg_models"] = [_alg_top]
+                                _ok_alg = True
+                            elif _tarea_res == "SIMCA":
+                                _mv = re.search(r"(\d+)\s*%", _alg_top)
+                                if _mv and 80 <= int(_mv.group(1)) <= 99:
+                                    st.session_state["ac_simca_var"] = int(_mv.group(1)) / 100
+                                    _ok_alg = True
+                            if _ok_alg:
+                                _hecho.append(f"{_tarea_res} → {_alg_top}")
+                                if _vs_top in ("None", "Boruta", "Genetic Algorithm"):
+                                    st.session_state[{"Classification": "ac_clf_varsel", "Regression": "sel_var_reg"}.get(_tarea_res, "_nada")] = _vs_top
+                            if _pref_m and st.session_state.get("crop_aplicado"):
+                                st.session_state[f"{_pref_m}_w_origen"] = ("Cropped spectrum" if _fila_top["Spectrum"] == "Cropped"
+                                                                           else "Full spectrum (no crop)")
+                            if _hecho:
+                                st.success(T("Ready:") + " " + " · ".join(_hecho) + ". "
+                                           + (T("Open the 🧪 Preprocessing tab and click Apply first, then open the model tab and train.")
+                                              if _rec_n in _mapa_rec else T("Now open the model tab and train.")))
+                            else:
+                                st.info("Nothing could be set automatically for this candidate; follow the steps above.")
     with tabs[11]:
         _frag_tab_8()
 
