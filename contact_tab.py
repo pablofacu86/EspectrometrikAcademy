@@ -17,6 +17,8 @@ TEMAS = [
 
 
 def render(enviar_fn, email):
+    st.markdown("<style>a[kind=\"primary\"], a[kind=\"primary\"] * {color:#fff !important; text-decoration:none !important;}</style>",
+                unsafe_allow_html=True)
     st.markdown(
         """
 <div style="background:linear-gradient(135deg,#0B3D54 0%,#14607F 100%); color:#fff; border-radius:14px;
@@ -33,7 +35,7 @@ def render(enviar_fn, email):
     with st.container(border=True):
         st.markdown("#### Want a hand with your models?")
         st.markdown(
-            "If we can help you with your models, advise you, or help you develop new ones, do not hesitate to write to us:")
+            "Do you have a model you would like to improve, or a new one to build? We would be glad to help — write to us:")
         k1, k2 = st.columns(2)
         with k1:
             st.markdown(
@@ -95,5 +97,6 @@ def render(enviar_fn, email):
                         st.success(detalle)
                     else:
                         st.error(detalle + f" You can also write directly to {email}.")
-    st.caption("Espectrometrika Academy is free for teaching and self-study. Suggestions for new tools, tutorials or datasets "
-               "are always welcome.")
+    st.markdown("<div style='font-size:1.05rem; color:#3D4A52; line-height:1.55; margin-top:6px;'>"
+                + T("Espectrometrika Academy is free for teaching and self-study. Suggestions for new tools, tutorials or datasets "
+                    "are always welcome.") + "</div>", unsafe_allow_html=True)

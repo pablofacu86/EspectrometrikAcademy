@@ -81,7 +81,7 @@ st.markdown(f"""
     .app-footer {{ background: rgba(14,17,23,.88); color: #7FB8D0; }}
 }}
 </style>
-<div class="app-footer">{COPYRIGHT_TEXTO} · Questions or meetings: <a href="mailto:{CONTACT_EMAIL}" style="color:inherit;">{CONTACT_EMAIL}</a></div>
+<div class="app-footer">{COPYRIGHT_TEXTO} · Questions: <a href="mailto:{CONTACT_EMAIL}" style="color:inherit;">{CONTACT_EMAIL}</a></div>
 """, unsafe_allow_html=True)
 
 # Brand palette (kept as module-level constants so other parts of the app can reuse them)
@@ -1697,7 +1697,7 @@ with st.sidebar:
                     st.error(_detalle)
 
     with st.expander("🎓 Need data to practise?", expanded=(st.session_state.get("X") is None)):
-        st.caption("Open the **📚 Learn → Public datasets** tab: it lists free tables and spectra (wine, soil, olive oil, "
+        st.caption("Open the **📚 Public datasets** tab: it lists free tables and spectra (wine, soil, olive oil, "
                    "Raman, metabolomics…) with a direct link and the citation of each one. Download a file there and load it here.")
 
     st.header("1. Load data")
@@ -2058,16 +2058,18 @@ _NOMBRES_TABS = {
     11: "🏁 Model screening", 12: "🏷️ Classification", 13: "🧬 SIMCA",
     14: "📉 Regression", 15: "🔮 Prediction", 16: "📑 Final report",
     27: "📚 Public datasets", 28: "✉️ Contact", 29: "📖 Glossary & cheat sheet",
-    30: "🎛️ Hyperparameters",
+    30: "🎛️ Hyperparameters", 31: "🧭 How do we start?",
 }
 # Two-level navigation. Each group is a top tab; its tools are inner tabs.
 _GRUPOS = [
     ("🏠 Home", [0]),
+    ("🧭 How do we start?", [31]),
+    ("📚 Public datasets", [27]),
+    ("📖 Glossary & cheat sheet", [29]),
     ("📂 Data & preprocessing", [1, 2, 3]),
     ("🔍 Exploratory", [4, 8, 9, 10]),
     ("🎯 Models & prediction", [11, 30, 12, 13, 14, 15]),
     ("📑 Final report", [16]),
-    ("📚 Learn", [27, 29]),
     ("✉️ Contact", [28]),
 ]
 
@@ -2157,10 +2159,46 @@ if _abierta(tabs[0]):
     </p>
     """, unsafe_allow_html=True)
 
-        st.markdown("#### 🧭 Your learning path")
-        gu.journey()
-        st.caption("Every tab has a **🧭 What's next?** button that recommends what to do depending on your results, and a "
-                   "**📖 How to interpret?** button that explains each metric in plain words.")
+        with st.expander("💡 Why chemometrics?", expanded=False):
+            st.markdown(
+                "**Chemometrics** is the discipline that applies mathematical and statistical methods to extract chemical "
+                "information from measurements — usually spectra, chromatograms or tables of chemical variables — and to design "
+                "experiments and validate the results. It makes it possible, for example, to classify samples, to predict a "
+                "property (a concentration, a quality parameter) from a spectrum, or to detect anomalous samples.")
+            st.markdown(
+                "**Chemometric models do not replace traditional chemical analysis: they complement and strengthen it.** "
+                "Combining spectroscopy (or any instrumental data) with multivariate modelling gives results that are fast, "
+                "usually non-destructive and with little or no use of reagents. They can reveal patterns that would otherwise "
+                "go unnoticed, and they allow many more samples to be analysed — which means more confidence in the conclusions "
+                "about a whole batch, not only about the few samples a laboratory can measure.")
+            st.markdown(
+                "They are especially useful when large volumes of data have to be analysed, and they are widely used, for example, in:\n"
+                "- **Food control**: genuineness, geographic or botanical origin, adulteration.\n"
+                "- **Metabolomics**: finding the metabolites of interest.\n"
+                "- **Instrument calibration**: multivariate calibrations of measurement instruments.\n"
+                "- **Pharmaceutical quality control**: identification, quantification and process monitoring.\n"
+                "- **Research projects**: a general tool to explore and model data.")
+            st.markdown(
+                "For all these reasons it is worth knowing these alternative tools — and knowing just as well their scope and "
+                "limitations: a model is only as good as the data and the validation behind it, and it must be checked and "
+                "maintained over time. That is the idea of this app: to learn to use them well, with a critical mind.")
+
+        with st.expander("🎓 What is Espectrometrika Academy?", expanded=False):
+            st.markdown(
+                "**Espectrometrika Academy is a tool to bring chemometrics closer to analytical chemists, students, researchers "
+                "and anyone who works with instrumental data.** It is designed above all for **learning**: you load your own data "
+                "(spectra or tables) and go through the whole workflow — exploring, preprocessing, comparing models, validating, "
+                "predicting — seeing what each step does and why.")
+            st.markdown(
+                "It is built so that you can **guide yourself** through the learning:\n"
+                "- A suggested **learning path** (*How do we start?* tab) that shows your progress.\n"
+                "- On every tab, a **What's next?** button that suggests what to do depending on your results, a **How to interpret?** "
+                "button that explains each plot and metric in plain words, and a **Pros & cons** button for each algorithm.\n"
+                "- A **glossary and metrics cheat sheet**, a **theoretical guide** (PDF) and a list of **public datasets** to practise.\n"
+                "- **Observation boxes** where you write what you see; they are printed in the final report together with the settings you used.")
+            st.markdown(
+                "Besides learning, the models you build can be **saved and reused** to predict new samples, with full traceability. "
+                "The app is free for teaching and self-study, and works in English and Castellano.")
 
         def _tarjeta(titulo, texto, bg, borde):
             st.markdown(f"""
@@ -2209,12 +2247,11 @@ if _abierta(tabs[0]):
                 st.rerun()
         else:
             st.info("👈 To get started, upload your own file in the left-hand panel (spectra or a table, CSV or Excel), "
-                    "or find free data to practise in **Learn → Public datasets**.")
+                    "or find free data to practise in the **Public datasets** tab.")
             gu.what_next("home", key="next_home_vacio")
             c_a, c_b = st.columns(2)
             with c_a:
-                st.markdown("**New to chemometrics?** Read the *Theoretical guide* (sidebar) and follow the path above with the Wine or "
-                            "Olive-oil example.")
+                st.markdown("**New to chemometrics?** Open the **🧭 How do we start?** tab and read the *Theoretical guide* (sidebar).")
             with c_b:
                 st.markdown("**Questions or want to talk about your data?** See the **✉️ Contact** tab — messages are welcome.")
 
@@ -2277,6 +2314,20 @@ def _bundle_a_X(bundle, X, eje):
 
 
 # -----------------------------------------------------------------------
+# TAB: HOW DO WE START? (learning path + progress)
+# -----------------------------------------------------------------------
+if _abierta(tabs[31]):
+    with tabs[31]:
+        st.subheader("How do we start?")
+        st.markdown("New to chemometrics? Follow these nine steps in order — each one has its own tab. The bar fills in as you "
+                    "explore them. If you do not have data yet, find free datasets to practise in the **Public datasets** tab.")
+        gu.journey()
+        st.caption("Every tab has a **🧭 What's next?** button that recommends what to do depending on your results, and a "
+                   "**📖 How to interpret?** button that explains each metric in plain words.")
+        st.markdown("**Tip:** the *Theoretical guide* (sidebar) explains every method used here, from preprocessing to validation.")
+
+
+# -----------------------------------------------------------------------
 # TABS THAT NEED NO DATA: public datasets, contact, glossary
 # -----------------------------------------------------------------------
 if _abierta(tabs[27]):
@@ -2298,7 +2349,7 @@ if not hay_datos():
     # before their real logic below (which assumes data exists).
     for _k_vacia in sorted(k for k in tabs if 1 <= k <= 16 or k == 30):
         with tabs[_k_vacia]:
-            st.info("📁 Load your data in the left-hand panel — or find free data in **Learn → Public datasets** — to get started.")
+            st.info("📁 Load your data in the left-hand panel — or find free data in the **Public datasets** tab — to get started.")
             gu.what_next("home", key=f"next_vacio_{_k_vacia}")
     st.stop()
 

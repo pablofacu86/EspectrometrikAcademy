@@ -117,7 +117,7 @@ INTERPRETAR = {
              "The weight of each original variable (wavenumber, ppm, compound…) in a PC.",
              "Large positive/negative loadings mark the variables responsible for the separation seen in the scores. "
              "For spectra they look like spectra: peaks point to the chemistry.",
-             "Compare the loading peaks with known bands (Learn tab) to link the model to the chemistry."),
+             "Compare the loading peaks with known bands (Glossary tab) to link the model to the chemistry."),
             ("Scores vs. batches / time",
              "If a PC separates measurement days, instruments or operators, that PC is capturing a nuisance effect.",
              "Colour by batch. If batches separate more than classes, improve preprocessing or randomise the "
@@ -702,7 +702,7 @@ def _recs_para(tab, ss, d):
                   _rec("📂", "Or load your own data", "Spectra (columns = wavenumbers) or tables (columns = named variables), "
                        "CSV or Excel. First column = sample ID.", "Sidebar"),
                   _rec("📚", "Need data to practise?", "The **Public datasets** tab lists where to download well-known datasets "
-                       "(with the authors to cite).", "📚 Learn")]
+                       "(with the authors to cite).", "📚 Public datasets")]
         else:
             R.append(_rec("➡️", "Continue where you are", "Follow the learning path above; each tab has its own "
                           "**What's next?** button.", None))
@@ -937,7 +937,7 @@ def _recs_para(tab, ss, d):
     if tab == "report":
         return [_rec("📥", "Download and archive", "Keep the report together with the saved model (.joblib) and the original data.", None),
                 _rec("🔁", "Not finished?", "You can return to any tab, change something and regenerate the report.", None),
-                _rec("📚", "Cite your data", "If the data come from a public source, cite its authors (see Public datasets).", "📚 Learn"),
+                _rec("📚", "Cite your data", "If the data come from a public source, cite its authors (see Public datasets).", "📚 Public datasets"),
                 _rec("✉️", "Questions?", "The author is available for questions and meetings — see the Contact tab.", "✉️ Contact")]
     return []
 
