@@ -739,6 +739,25 @@ def fig_curva_aprendizaje(curva, nombre_modelo=""):
     return fig
 
 
+def fig_remuestreo(res, metrica, titulo=""):
+    """Box plot (with the individual repetitions) of one metric for every model."""
+    nombres = list(res.keys())
+    datos = [res[n][metrica].values for n in nombres]
+    fig, ax = plt.subplots(figsize=(max(5.0, 1.3 * len(nombres) + 2), 4.2))
+    bp = ax.boxplot(datos, tick_labels=nombres, patch_artist=True, showfliers=False)
+    for patch in bp["boxes"]:
+        patch.set_facecolor("#D6E6F5"); patch.set_edgecolor("#185FA5")
+    rng = np.random.RandomState(0)
+    for i, d in enumerate(datos, start=1):
+        ax.scatter(i + rng.uniform(-0.15, 0.15, len(d)), d, s=8, color="#185FA5", alpha=0.6, zorder=3)
+    ax.set_ylabel(metrica)
+    ax.set_title(titulo or f"{metrica} over the repetitions", fontsize=11)
+    ax.spines[["top", "right"]].set_visible(False)
+    plt.setp(ax.get_xticklabels(), rotation=20, ha="right")
+    fig.tight_layout()
+    return fig
+
+
 def fig_comparacion_pvalores(pvalores_df):
     """Heatmap of pairwise p-values between models (paired t-test on
     per-fold CV scores). Values below 0.05 are highlighted."""

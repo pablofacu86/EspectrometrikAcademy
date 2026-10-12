@@ -325,9 +325,9 @@ def language_switch():
     ss = st.session_state
     if "lang_sel" not in ss:
         try:
-            q = str(st.query_params.get("lang", "en")).lower()
+            q = str(st.query_params.get("lang", "es")).lower()
         except Exception:
-            q = "en"
+            q = "es"
         ss["lang_sel"] = "Castellano" if q.startswith("es") else "English"
     sel = st.radio("Language / Idioma", LANG_LABELS, horizontal=True, key="lang_sel",
                    label_visibility="collapsed")

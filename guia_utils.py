@@ -98,6 +98,27 @@ def _sem(valor, malo, bueno, mayor_mejor=True):
 #   (name, what it is, how to read it, rule of thumb, optional (key, poor, good, higher_is_better))
 # ---------------------------------------------------------------------------
 INTERPRETAR = {
+    "resampling": {
+        "title": "Reading the resampling results",
+        "items": [
+            ("Mean ± SD of each metric",
+             "The model is refitted many times, each time with a different train/test partition; this is the average result and how much it moves from one partition to another.",
+             "The mean is the performance you can honestly expect. The SD (spread) tells you how much it depends on WHICH samples happen to be in the test set.",
+             "A small SD (say < 0.02 in accuracy or R²) means the result is stable. A large SD is typical of small or heterogeneous datasets — do not trust a single split."),
+            ("95 % interval (bootstrap only)",
+             "The range that contains the middle 95 % of the repetitions (2.5th to 97.5th percentile).",
+             "It is an empirical interval for the metric: if you repeated the whole study with other samples from the same population, the result would most likely fall inside it.",
+             "A wide interval means high uncertainty. If the intervals of two models overlap a lot, you cannot say that one is really better."),
+            ("Box plot of the repetitions",
+             "Each dot is one repetition; the box holds the middle 50 % of them and the line is the median.",
+             "Compare boxes between models: separated boxes = a real difference; overlapping boxes = a difference that could be luck.",
+             "Outlier dots far from the box show that some partitions were unlucky (e.g. a whole class missing from the test set)."),
+            ("Resampling mean vs. the single test-set result",
+             "Your first test result comes from one partition only.",
+             "If the single result is far from the resampling mean (more than about 1 SD) it was a lucky or unlucky split — report the resampling mean ± SD instead.",
+             None),
+        ],
+    },
     "pca": {
         "title": "Reading a PCA",
         "items": [
@@ -384,6 +405,26 @@ def how_to_interpret(kind, valores=None, key=None, etiqueta="📖 How to interpr
 # PROS & CONS — comparison of the options of a menu
 # ---------------------------------------------------------------------------
 PROS_CONTRAS = {
+    "resampling": {
+        "title": "Resampling methods",
+        "items": {
+            "Repeated hold-out (Monte Carlo)": (
+                ["Easy to explain: you choose the test fraction and it is repeated many times.",
+                 "The test set always has the size you decided and is stratified by class in classification.",
+                 "Rotates the samples between train and test, so no single lucky/unlucky split decides."],
+                ["Repetitions share many training samples, so the SD slightly underestimates the real uncertainty.",
+                 "Some samples may be tested more often than others."],
+                "Quick stability check of a result, or small/medium datasets where you want a fixed test size."),
+            "Bootstrap (out-of-bag)": (
+                ["Gives an empirical 95 % interval for each metric.",
+                 "Uses the whole dataset size for training in each repetition (with repeated samples).",
+                 "Test samples (out-of-bag) are never in that repetition's training set. Widely known and accepted."],
+                ["Only ~63 % of the samples are distinct in training, so the estimate tends to be slightly pessimistic.",
+                 "The out-of-bag size varies each time, and a class can be rare in it (such repetitions are discarded if training lacks a class).",
+                 "Replicates of the same sample can leak between train and test if they are not grouped."],
+                "You want confidence intervals, or the dataset is small and you want to use all of it for training."),
+        },
+    },
     "split_clf": {
         "title": "How to choose the test set (classification)",
         "items": {
@@ -961,6 +1002,38 @@ def what_next(tab, key=None, etiqueta="🧭 What's next?"):
         for r in recs:
             st.markdown(f"{r['icono']} **{r['titulo']}**  \n{r['texto']}"
                         + (f"  \n*→ {r['donde']}*" if r["donde"] else ""))
+        st.caption("Suggestions only: chemometrics is iterative — going back a step is normal.")
+
+
+def what_next_remuestreo(res, es_clf, boot, key=None, etiqueta="🧭 What's next?"):
+    """Popover with suggestions based on the resampling results (dict model -> DataFrame of repetitions)."""
+    if not res:
+        return
+    metrica = "Balanced accuracy" if es_clf else "R²"
+    medias, sds = {}, {}
+    for nm, df in res.items():
+        if metrica in df.columns:
+            medias[nm] = float(df[metrica].mean()); sds[nm] = float(df[metrica].std(ddof=1))
+    recs = []
+    if medias:
+        mejor = max(medias, key=medias.get)
+        sd_max = max(sds.values())
+        recs.append(("🏆", "Best on average", f"**{mejor}** has the highest mean {metrica} ({medias[mejor]:.3f} ± {sds[mejor]:.3f})."))
+        ord_ = sorted(medias, key=medias.get, reverse=True)
+        if len(ord_) > 1:
+            a, b2 = ord_[0], ord_[1]
+            if medias[a] - medias[b2] < max(sds[a], sds[b2]):
+                recs.append(("⚖️", "No clear winner", f"{a} and {b2} differ by less than their SD: you cannot say one is really better. Prefer the simpler/more interpretable one."))
+        if sd_max > 0.05:
+            recs.append(("🎲", "High variability", "The result depends strongly on the partition. Get more samples, use a simpler model or fewer variables, and always report mean ± SD rather than one split."))
+        else:
+            recs.append(("✅", "Stable result", "The SD is small, so one split is representative. You can go on and save the model."))
+    recs.append(("📝", "Document it", "Write your conclusions in the observations box under the plot: they are printed in the Final report together with this table."))
+    recs.append(("➡️", "Next step", "Save the chosen model in this tab and use it in 🔮 Prediction, or go to 📑 Final report."))
+    with st.popover(etiqueta, help="Recommendations based on your resampling results.", key=key or "next_resampling"):
+        st.markdown("### What would I do now?")
+        for ic, t, tx in recs:
+            st.markdown(f"{ic} **{t}**  \n{tx}")
         st.caption("Suggestions only: chemometrics is iterative — going back a step is normal.")
 
 

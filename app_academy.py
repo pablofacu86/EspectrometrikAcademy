@@ -68,9 +68,36 @@ COPYRIGHT_TEXTO = "Espectrometrika.edu · All rights reserved"
 CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "espectrometrika@gmail.com")   # shown in the Contact tab (mailto link)
 EDICION = "Academy"
 i18n.install()                                  # English / Castellano switch (per user session)
-_top_cols = st.columns([6, 2.4])
+_top_cols = st.columns([2.6, 4.2, 2.4])
 with _top_cols[1]:
+    _niv = st.radio("Level", ["ini", "exp"], index=1, horizontal=True, key="nivel_sel", label_visibility="collapsed",
+                    format_func=lambda k: T("🌱 First steps") if k == "ini" else T("🔬 I have experience"),
+                    help=T("First steps keeps the essential workflow (load data, preprocessing, PCA, outliers, dendrogram, screening, classification, regression, prediction, report). The advanced tools (PC finder, non-linear finder, consensus, hyperparameters, SIMCA, other tools, resampling, variable selection and hyperparameter optimization) stay visible but greyed out. 'I have experience' unlocks everything."))
+    st.session_state["_nivel"] = _niv
+    st.caption(T("🌱 First steps: essentials only · 🔬 Experience: everything unlocked"))
+with _top_cols[2]:
     i18n.language_switch()
+_BASICO = (st.session_state.get("_nivel", "exp") == "ini")
+import streamlit.components.v1 as _components
+_components.html("""<script>
+(function(){
+  try{
+    var d = window.parent.document;
+    function lock(){
+      d.querySelectorAll('[role="tab"]').forEach(function(t){
+        if ((t.innerText||'').trim().indexOf('\\ud83d\\udd12') === 0){
+          t.style.pointerEvents='none'; t.style.cursor='not-allowed'; t.setAttribute('aria-disabled','true'); t.tabIndex=-1;
+        } else { t.style.pointerEvents=''; t.removeAttribute('aria-disabled'); }
+      });
+    }
+    lock();
+    if(!window.parent.__espLockObs){
+      window.parent.__espLockObs = new MutationObserver(lock);
+      window.parent.__espLockObs.observe(d.body,{childList:true,subtree:true,characterData:true});
+    }
+  }catch(e){}
+})();
+</script>""", height=0)
 st.markdown(f"""
 <style>
 .block-container {{ padding-bottom: 3.5rem; }}
@@ -95,6 +122,7 @@ TEAL_LIGHT = "#5EEAD4"
 TEAL_SOFT = "#E6FBF7"
 
 
+@functools.lru_cache(maxsize=16)
 @functools.lru_cache(maxsize=16)
 def _img_b64(nombre_archivo, max_w=None, max_h=None, paleta=False):
     """Reads an image from assets/ and returns it as a base64 data URI for inline HTML.
@@ -522,6 +550,33 @@ st.markdown("""
         color: #0B3D54;
     }
     a {color: #14B8A6 !important;}
+
+    /* ---------------- Mobile mode (phones / narrow windows) ---------------- */
+    @media (max-width: 768px) {
+        section.stMain .block-container, [data-testid="stMainBlockContainer"] {
+            padding: 4rem 0.8rem 5rem 0.8rem !important;
+        }
+        h1 { font-size: 1.5rem !important; }
+        h2 { font-size: 1.25rem !important; }
+        h3 { font-size: 1.08rem !important; }
+        /* columns stack one under the other */
+        [data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; gap: 0.5rem !important; }
+        [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+            min-width: 100% !important; flex: 1 1 100% !important; width: 100% !important;
+        }
+        /* tabs: smaller text, swipe sideways */
+        [role="tablist"] { overflow-x: auto !important; }
+        [role="tab"] { padding: 0.4rem 0.55rem !important; font-size: 0.82rem !important; white-space: nowrap; }
+        /* wide tables and plots scroll instead of overflowing the page */
+        [data-testid="stDataFrame"], [data-testid="stTable"] { max-width: 100%; overflow-x: auto; }
+        .js-plotly-plot, .plotly { max-width: 100% !important; }
+        /* bigger touch targets */
+        .stButton > button, .stDownloadButton > button { min-height: 2.8rem; width: 100%; }
+        [data-baseweb="select"] > div, input, textarea { font-size: 16px !important; }
+        /* hero logo and cards */
+        img { max-width: 100% !important; height: auto !important; }
+        [data-testid="stPopoverBody"], div[data-baseweb="popover"] > div { max-width: 94vw !important; }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -614,10 +669,15 @@ def _ui_split(es_clf, prop, key, simca=False):
     semilla = st.number_input(
         "Random seed", min_value=0, max_value=999999, value=0, step=1, key=key + "_seed",
         disabled=(prop == 0 or metodo == "kennard_stone"),
-        help="The seed fixes the 'random' draw: the same seed always gives exactly the same train/test split "
-             "(and the same cross-validation folds), so your results are reproducible. Change it to see how much "
-             "the result depends on the luck of the split (or use the resampling section below to repeat it many times). "
-             "Kennard-Stone/SPXY involve no randomness, so the seed is not used there.")
+        help="Think of the seed as the 'shuffle number' of the deck of samples. Seed 0, seed 1, seed 2... are just different "
+             "shuffles: each one gives a different (but equally valid) random train/test split. The SAME seed always repeats "
+             "exactly the same split and the same cross-validation folds, so your results are reproducible and other people can "
+             "get your numbers. Changing the seed shows how much the result depends on the luck of the split — if the metric "
+             "changes a lot between seed 0, 1 and 2, the dataset is small or heterogeneous and a single number cannot be trusted "
+             "(use the resampling section below to repeat it many times). There is no 'best' seed: do not pick the one that "
+             "looks better. Kennard-Stone/SPXY involve no randomness, so the seed is not used there.")
+    if metodo != "kennard_stone" and prop > 0:
+        st.caption("🎲 The seed is just the number of the 'shuffle': the same seed repeats the same split; another seed gives another split. Try 0, 1, 2 to see how much the result depends on the luck of the split.")
     gu.pros_cons(pc, sel, key="pc_" + key)
     if metodo == "kennard_stone":
         st.caption("ℹ️ Kennard-Stone is deterministic: it picks the TRAINING set to cover the spectral space within EACH class separately (including the more 'extreme' samples); the remaining, more 'typical' samples become the test set. No seed is needed."
@@ -653,23 +713,25 @@ def _diagnostico_curva(curva):
 def _ui_remuestreo(pref, modelos, X, y, es_clf, prop_default=0.25):
     """Optional resampling for ALL trained models: many random train/test splits → metrics ± SD."""
     st.markdown("#### 🔁 Resampling: metrics with their uncertainty (optional)")
+    if _BASICO:
+        st.caption(T("🔒 Advanced section — greyed out in First steps mode. Switch to 🔬 I have experience (top of the page) to use it."))
     st.caption("A single train/test split can be lucky or unlucky. Here the split is **repeated many times** (random"
                + (", stratified by class" if es_clf else "") + "); every trained model is refitted each time with the same "
                "hyperparameters and tested on the samples left out. The mean ± standard deviation tells you the "
                "result you can honestly expect and how much it depends on which samples ended up in the test set.")
     metodo_rs = st.radio("Resampling method", ["Repeated hold-out (Monte Carlo)", "Bootstrap (out-of-bag)"],
-                         horizontal=True, key=f"{pref}_rs_met",
+                         horizontal=True, key=f"{pref}_rs_met", disabled=_BASICO,
                          help="Repeated hold-out: each repetition holds out a fixed fraction of the samples as test, drawn at random without replacement. "
                               "Bootstrap: each repetition trains on N samples drawn WITH replacement (some repeated, ~63 % distinct) and tests on the samples that were never drawn (out-of-bag, ~37 %); the test samples are never in that training set. "
                               "Both rotate the samples between train and test, so no single lucky or unlucky test set decides the result.")
     _boot = metodo_rs.startswith("Bootstrap")
     c1, c2, c3 = st.columns([1, 1, 1])
-    n_rep = c1.slider("Number of repetitions", 5, 200 if _boot else 100, 50 if _boot else 20, step=5, key=f"{pref}_rs_n{'b' if _boot else ''}")
+    n_rep = c1.slider("Number of repetitions", 5, 200 if _boot else 100, 50 if _boot else 20, step=5, key=f"{pref}_rs_n{'b' if _boot else ''}", disabled=_BASICO)
     if _boot:
         prop = prop_default
         c2.caption("The test set of each repetition is the out-of-bag samples (about 37 % of the data, it varies each time).")
     else:
-        prop = c2.slider("Test fraction (%)", 10, 40, int(prop_default * 100), step=5, key=f"{pref}_rs_prop") / 100
+        prop = c2.slider("Test fraction (%)", 10, 40, int(prop_default * 100), step=5, key=f"{pref}_rs_prop", disabled=_BASICO) / 100
 
     def _correr():
         # runs BEFORE the page reruns, so the results are already there when it redraws
@@ -678,12 +740,20 @@ def _ui_remuestreo(pref, modelos, X, y, es_clf, prop_default=0.25):
                                                                               metodo="bootstrap" if _boot else "holdout")
                                                   for nm, m in modelos.items()}
             st.session_state[f"{pref}_rs_boot"] = _boot
+            st.session_state[f"{pref}_rs_cfg"] = {"n": int(n_rep), "prop": float(prop)}
             st.session_state[f"{pref}_rs_err"] = None
         except Exception as e:
             st.session_state[f"{pref}_rs_err"] = str(e)
     c3.markdown("<div style='height:1.7rem'></div>", unsafe_allow_html=True)
-    c3.button("▶ Run resampling", key=f"{pref}_rs_btn", on_click=_correr, type="primary",
+    c3.button("▶ Run resampling", key=f"{pref}_rs_btn", on_click=_correr, type="primary", disabled=_BASICO,
               help="Repeats the split and refits every trained model each time (a few seconds to a few minutes, depending on the models and the data).")
+    _g1, _g2, _g3, _ = st.columns([1.5, 1.9, 1.6, 3])
+    with _g1:
+        gu.what_next_remuestreo(st.session_state.get(f"{pref}_rs_res"), es_clf, st.session_state.get(f"{pref}_rs_boot"), key=f"{pref}_rs_next")
+    with _g2:
+        gu.how_to_interpret("resampling", key=f"{pref}_rs_how")
+    with _g3:
+        gu.pros_cons("resampling", metodo_rs, key=f"{pref}_rs_pc")
     if st.session_state.get(f"{pref}_rs_err"):
         st.error(f"Resampling failed: {st.session_state[f'{pref}_rs_err']}")
     res = st.session_state.get(f"{pref}_rs_res")
@@ -708,6 +778,7 @@ def _ui_remuestreo(pref, modelos, X, y, es_clf, prop_default=0.25):
         st.caption("Report as **mean ± SD** over the repetitions. A large SD means the result depends strongly on which "
                    "samples are used for testing (typical of small datasets). If two models differ by less than their SD, "
                    "you cannot say that one is really better.")
+        gu.nota(f"{pref}_resampling", "resampling plot", pref)
         st.divider()
 
 
@@ -945,8 +1016,8 @@ def _bloque_cargas_biplot(scores, cargas, autovalores, var_exp, X, eje, ids, cla
     # ---------------------------------------------------------------- biplot
     st.markdown("### Biplot — samples (scores) and variables (loadings) together")
     c1, c2, c3 = st.columns(3)
-    px_ = c1.selectbox("X axis", opciones, index=0, key="bip_x", help="Component on the horizontal axis.")
-    py_ = c2.selectbox("Y axis", opciones, index=min(1, len(opciones) - 1), key="bip_y", help="Component on the vertical axis.")
+    px_ = c1.selectbox("X axis (PC)", opciones, format_func=lambda _k: f"PC{_k}", index=0, key="bip_x", help="Component on the horizontal axis.")
+    py_ = c2.selectbox("Y axis (PC)", opciones, format_func=lambda _k: f"PC{_k}", index=min(1, len(opciones) - 1), key="bip_y", help="Component on the vertical axis.")
     nvar = c3.slider("Variables drawn as arrows", 3, min(40, p), min(12 if tab else 8, p), key="bip_n",
                      help="The variables with the longest arrows in this plane. Neighbouring points of a spectrum are almost "
                           "identical, so for spectra the app keeps variables that are far apart on the axis.")
@@ -1840,7 +1911,7 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"Could not load the project file: {e}")
 
-    with st.expander("✉️ Questions about chemometrics? Write to me", expanded=True):
+    with st.expander("✉️ Questions about chemometrics? Write to me", expanded=False):
         st.caption("Doubts about your analysis, a second opinion on a model, or a meeting to discuss your data? "
                    f"Write to **{CONTACT_EMAIL}** or use the form below (more options in the **✉️ Contact** tab).")
         _mensaje_contacto = st.text_area(
@@ -1867,7 +1938,7 @@ with st.sidebar:
                 else:
                     st.error(_detalle)
 
-    with st.expander("🎓 Need data to practise?", expanded=(st.session_state.get("X") is None)):
+    with st.expander("🎓 Need data to practise?", expanded=False):
         st.caption("Open the **📚 Public datasets** tab: it lists free tables and spectra (wine, soil, olive oil, "
                    "Raman, metabolomics…) with a direct link and the citation of each one. Download a file there and load it here.")
 
@@ -2272,6 +2343,25 @@ class _TabAnidada:
         return (self.i if self.i is not None else self.g).__exit__(*a)
 
 
+_AVANZADAS = {5, 6, 7, 10, 13, 30}      # locked (greyed out) in "First steps" mode
+
+
+class _TabBloqueada:
+    """Placeholder for a tool locked in 'First steps' mode: never open."""
+    open = False
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def _etq_tab(k):
+    n = _NOMBRES_TABS[k]
+    return f":gray[🔒 {T(n)}]" if (_BASICO and k in _AVANZADAS) else n
+
+
 def _crear_tabs():
     try:
         grupos = st.tabs([g[0] for g in _GRUPOS], on_change="rerun", key="nav_principal")
@@ -2285,16 +2375,21 @@ def _crear_tabs():
             out[idx[0]] = _TabAnidada(gt, None)
             continue
         with gt:
-            nombres = [_NOMBRES_TABS[k] for k in idx]
+            nombres = [_etq_tab(k) for k in idx]
             try:
                 if lazy:
-                    inner = st.tabs(nombres, on_change="rerun", key=f"nav_g{gi}")
+                    inner = st.tabs(nombres, on_change="rerun", key=f"nav_g{gi}{'b' if _BASICO else 'x'}")
                 else:
                     inner = st.tabs(nombres)
             except TypeError:
                 inner = st.tabs(nombres)
         for k, it in zip(idx, inner):
-            out[k] = _TabAnidada(gt, it)
+            if _BASICO and k in _AVANZADAS:
+                with it:
+                    st.info(T("🔒 This is an advanced tool. Switch to **🔬 I have experience** at the top of the page to unlock it."))
+                out[k] = _TabBloqueada()
+            else:
+                out[k] = _TabAnidada(gt, it)
     return out
 
 
@@ -2323,7 +2418,7 @@ if _abierta(tabs[0]):
     <p style="font-family:'Nunito Sans',sans-serif; font-size:1.08rem; color:#4A5A63; max-width:860px;
               margin-top:6px; margin-bottom:18px; line-height:1.55;">
         <b>Espectrometrika.edu</b> is the edition of the app designed to <b>start in chemometrics</b>: make your first exploratory
-        analyses, train and validate your first models, understand every metric — and keep them. Models can be <b>saved and reused
+        analyses, train and validate your first models, understand every metric. Models can be <b>saved and reused
         another day</b> to predict new samples, with full traceability.
     </p>
     """, unsafe_allow_html=True)
@@ -2385,17 +2480,17 @@ if _abierta(tabs[0]):
             _tarjeta("🔍 1 · Explore",
                      "Load <b>spectra</b> (NIR, MIR, Raman, NMR, chromatograms) or <b>tables</b> (clinical, metabolomics, chemical analyses). "
                      "Preprocess, run PCA, detect outliers and cluster the samples — each step explained.",
-                     TEAL_SOFT, TEAL)
+                     "#E6F0F6", PETROLEUM)
         with col2:
             _tarjeta("🎯 2 · Model",
                      "Compare many preprocessing × algorithm combinations fairly (<b>screening</b>), then refine <b>classification</b>, "
                      "<b>regression</b> and <b>SIMCA</b> models. Tune hyperparameters with ranges adapted to your data.",
-                     "#EAF2F7", PETROLEUM_LIGHT)
+                     "#FFF4DC", "#F5A623")
         with col3:
             _tarjeta("🔮 3 · Predict & report",
                      "Save your model with its preprocessing and a model card, load it another day, predict new samples with their "
                      "domain of applicability, and export a traceable <b>report</b>.",
-                     "#FDF6E9", "#D97706")
+                     "#FDECEA", "#F23A2F")
 
         st.markdown("""
         <div style="margin-top:22px; padding:12px 16px; border-radius:8px; background:#F4F8F9;
@@ -2405,6 +2500,17 @@ if _abierta(tabs[0]):
         excluded outliers...), the result is flagged <b>out of date</b> and keeps showing the
         last version you asked for until you click <b>Update</b>. Preprocessing only reaches
         the rest of the app when you click <b>Apply</b>.
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("""
+        <div style="margin-top:12px; padding:12px 16px; border-radius:8px; background:#FFF4DC; border-left:4px solid #F5A623;
+                    font-size:0.92rem; color:#3D4A52; line-height:1.55;">
+        <b>🌱 First steps / 🔬 I have experience</b> (switch at the top of the page): in <b>First steps</b> mode you get the essential
+        workflow — load data, preprocessing, PCA, outliers, dendrogram, model screening, classification, regression, prediction and report —
+        and the advanced tools (PC finder, non-linear finder, consensus, hyperparameters, SIMCA, other tools, resampling, variable selection,
+        hyperparameter optimization) stay visible but <b>greyed out</b>, so you can see what is coming without getting lost.
+        Choose <b>I have experience</b> to unlock everything. You can switch at any time without losing your work.
         </div>
         """, unsafe_allow_html=True)
 
@@ -3045,9 +3151,9 @@ if _abierta(tabs[4]):
                 c1, c2 = st.columns(2)
                 with c1:
                     cc1, cc2 = st.columns(2)
-                    pcx_1 = cc1.selectbox("X axis", opciones_pc, index=0, key="pcx_1",
+                    pcx_1 = cc1.selectbox("X axis (PC)", opciones_pc, format_func=lambda _k: f"PC{_k}", index=0, key="pcx_1",
                                            help="Which principal component to plot on the horizontal axis.")
-                    pcy_1 = cc2.selectbox("Y axis", opciones_pc, index=min(1, n_comp_disponibles - 1), key="pcy_1",
+                    pcy_1 = cc2.selectbox("Y axis (PC)", opciones_pc, format_func=lambda _k: f"PC{_k}", index=min(1, n_comp_disponibles - 1), key="pcy_1",
                                            help="Which principal component to plot on the vertical axis.")
                     st.plotly_chart(grafico_scores(pcx_1, pcy_1), width='stretch')
                     gu.nota("pca_scores_a", "scores plot (left)", "pca")
@@ -3055,17 +3161,17 @@ if _abierta(tabs[4]):
                     cc3, cc4 = st.columns(2)
                     idx_default_x2 = min(1, n_comp_disponibles - 1)
                     idx_default_y2 = min(2, n_comp_disponibles - 1)
-                    pcx_2 = cc3.selectbox("X axis", opciones_pc, index=idx_default_x2, key="pcx_2", help="Component shown on the horizontal axis.")
-                    pcy_2 = cc4.selectbox("Y axis", opciones_pc, index=idx_default_y2, key="pcy_2", help="Component shown on the vertical axis.")
+                    pcx_2 = cc3.selectbox("X axis (PC)", opciones_pc, format_func=lambda _k: f"PC{_k}", index=idx_default_x2, key="pcx_2", help="Component shown on the horizontal axis.")
+                    pcy_2 = cc4.selectbox("Y axis (PC)", opciones_pc, format_func=lambda _k: f"PC{_k}", index=idx_default_y2, key="pcy_2", help="Component shown on the vertical axis.")
                     st.plotly_chart(grafico_scores(pcx_2, pcy_2), width='stretch')
                     gu.nota("pca_scores_b", "scores plot (right)", "pca")
 
                 st.markdown("**Interactive 3D plot (drag to rotate)**")
                 if n_comp_max_guardado >= 3:
                     cc5, cc6, cc7 = st.columns(3)
-                    pcx_3d = cc5.selectbox("X axis", opciones_pc, index=0, key="pcx_3d", help="Component shown on the X axis.")
-                    pcy_3d = cc6.selectbox("Y axis", opciones_pc, index=min(1, n_comp_disponibles - 1), key="pcy_3d", help="Component shown on the Y axis.")
-                    pcz_3d = cc7.selectbox("Z axis", opciones_pc, index=min(2, n_comp_disponibles - 1), key="pcz_3d", help="Component shown on the Z axis.")
+                    pcx_3d = cc5.selectbox("X axis (PC)", opciones_pc, format_func=lambda _k: f"PC{_k}", index=0, key="pcx_3d", help="Component shown on the X axis.")
+                    pcy_3d = cc6.selectbox("Y axis (PC)", opciones_pc, format_func=lambda _k: f"PC{_k}", index=min(1, n_comp_disponibles - 1), key="pcy_3d", help="Component shown on the Y axis.")
+                    pcz_3d = cc7.selectbox("Z axis (PC)", opciones_pc, format_func=lambda _k: f"PC{_k}", index=min(2, n_comp_disponibles - 1), key="pcz_3d", help="Component shown on the Z axis.")
                     col_x, col_y, col_z = f"PC{pcx_3d}", f"PC{pcy_3d}", f"PC{pcz_3d}"
                     df3d = pd.DataFrame({
                         col_x: scores_completo[:, pcx_3d - 1],
@@ -4448,7 +4554,9 @@ if _abierta(tabs[12]):
                              "training. Boruta is conservative and keeps anything that helps at all; "
                              "the Genetic Algorithm explores combinations more freely but is slower and "
                              "a bit more random. 'None' uses the full spectrum.",
-                    key="ac_clf_varsel")
+                    key="ac_clf_varsel", disabled=_BASICO)
+                    if _BASICO:
+                        metodo_seleccion = "None"
                     gu.pros_cons("seleccion", metodo_seleccion, key="pc_sel_clf")
                 with col2:
                     cv_folds_sel = st.selectbox(
@@ -4476,7 +4584,9 @@ if _abierta(tabs[12]):
                         help="Automatically search for better settings for each model (e.g. how many "
                              "trees in a Random Forest) instead of using the defaults. Usually improves "
                              "results a bit, at the cost of extra computation time.",
-                    key="ac_clf_optim")
+                    key="ac_clf_optim", disabled=_BASICO)
+                    if _BASICO:
+                        optimizar = False
                     if optimizar:
                         st.caption("Search ranges in use: **" + st.session_state.get("hp_modo_aplicado", HP_MODOS[1])
                                    + "** — change them in the 🎛️ Hyperparameters tab.")
@@ -4559,7 +4669,7 @@ if _abierta(tabs[12]):
                         # statistical comparison or learning curve computed for models A/B/C would
                         # otherwise linger on screen after retraining with a different D/E/F).
                         for _clave in ["clf_pvalores", "clf_puntajes_cv", "clf_comparacion_metodo",
-                                        "clf_curva_aprendizaje", "clf_curva_modelo", "clf_ultima_ficha"]:
+                                        "clf_curva_aprendizaje", "clf_curva_modelo", "clf_ultima_ficha", "clf_rs_res"]:
                             st.session_state.pop(_clave, None)
                         # The train/test split is decided FIRST: variable selection and hyperparameter optimization
                         # then use ONLY the training samples, so nothing about the test set leaks into the model.
@@ -4746,60 +4856,63 @@ if _abierta(tabs[12]):
                     modelos_exitosos = [n for n in resultados if "error" not in resultados[n]]
                     if len(modelos_exitosos) >= 2:
                         hay_test_clf = "test" in resultados[modelos_exitosos[0]]
-                        with st.expander("📊 Compare models statistically"):
-                            if hay_test_clf:
-                                st.caption("Compares models on the held-out TEST set predictions, sample by "
-                                           "sample (McNemar's test) — this is what can actually reveal "
-                                           "overfitting, since two models can look equally good in "
-                                           "cross-validation yet behave very differently on genuinely unseen "
-                                           "data. A p-value below 0.05 means the difference is unlikely to be "
-                                           "just chance.")
-                            else:
-                                st.caption("No independent test set was configured, so this compares models "
-                                           "using a paired t-test on their per-fold cross-validation scores "
-                                           "instead (same folds for every model). Note this can't detect "
-                                           "overfitting the way a held-out test set would — consider setting "
-                                           "aside a test proportion above 0% for a more trustworthy comparison.")
-                            if st.button("Run comparison", key="comparar_modelos_clf"):
+                        if _BASICO:
+                            st.caption(T("🔒 Compare models statistically — advanced, greyed out in First steps mode."))  # LOCKED
+                        else:
+                            with st.expander("📊 Compare models statistically"):
                                 if hay_test_clf:
-                                    pvalores, puntajes = mu.comparar_modelos_en_test(
-                                        {n: resultados[n] for n in modelos_exitosos}, es_clasificacion=True,
-                                    )
+                                    st.caption("Compares models on the held-out TEST set predictions, sample by "
+                                               "sample (McNemar's test) — this is what can actually reveal "
+                                               "overfitting, since two models can look equally good in "
+                                               "cross-validation yet behave very differently on genuinely unseen "
+                                               "data. A p-value below 0.05 means the difference is unlikely to be "
+                                               "just chance.")
                                 else:
-                                    mascara_cmp = st.session_state["clf_mascara_variables"]
-                                    # Use the exact same train-only subset the main CV metrics used, so the
-                                    # held-out test set (if any) never leaks into model comparison.
-                                    ids_train_ref = resultados[modelos_exitosos[0]]["cv"]["ids"]
-                                    mask_train_cmp = np.isin(ids_activos, ids_train_ref)
-                                    X_cmp = X_modelado[mask_train_cmp]
-                                    y_cmp = clases_activas[mask_train_cmp]
-                                    if mascara_cmp is not None:
-                                        X_cmp = X_cmp[:, mascara_cmp]
-                                    modelos_para_comparar = {
-                                        n: mu.clone(resultados[n]["modelo_final"]) for n in modelos_exitosos
-                                    }
-                                    with st.spinner("Running cross-validation for every model on the same folds..."):
-                                        pvalores, puntajes = mu.comparar_modelos_estadisticamente(
-                                            modelos_para_comparar, X_cmp, y_cmp, es_clasificacion=True,
-                                            cv=st.session_state["clf_cv_folds"],
+                                    st.caption("No independent test set was configured, so this compares models "
+                                               "using a paired t-test on their per-fold cross-validation scores "
+                                               "instead (same folds for every model). Note this can't detect "
+                                               "overfitting the way a held-out test set would — consider setting "
+                                               "aside a test proportion above 0% for a more trustworthy comparison.")
+                                if st.button("Run comparison", key="comparar_modelos_clf"):
+                                    if hay_test_clf:
+                                        pvalores, puntajes = mu.comparar_modelos_en_test(
+                                            {n: resultados[n] for n in modelos_exitosos}, es_clasificacion=True,
                                         )
-                                st.session_state["clf_pvalores"] = pvalores
-                                st.session_state["clf_puntajes_cv"] = puntajes
-                                st.session_state["clf_comparacion_metodo"] = (
-                                    "McNemar's test on the held-out test set" if hay_test_clf
-                                    else "Paired t-test on cross-validation folds (no test set configured)"
-                                )
-                            if "clf_pvalores" in st.session_state:
-                                interpretacion = mu.interpretar_comparacion_modelos(
-                                    st.session_state["clf_pvalores"], st.session_state["clf_puntajes_cv"],
-                                )
-                                if interpretacion["hay_diferencias"]:
-                                    for msg in interpretacion["mensajes"]:
-                                        st.success(msg)
-                                else:
-                                    st.info(interpretacion["mensajes"][0])
-                                st.markdown("**p-values:**")
-                                st.dataframe(st.session_state["clf_pvalores"].style.format("{:.4f}"), width='stretch')
+                                    else:
+                                        mascara_cmp = st.session_state["clf_mascara_variables"]
+                                        # Use the exact same train-only subset the main CV metrics used, so the
+                                        # held-out test set (if any) never leaks into model comparison.
+                                        ids_train_ref = resultados[modelos_exitosos[0]]["cv"]["ids"]
+                                        mask_train_cmp = np.isin(ids_activos, ids_train_ref)
+                                        X_cmp = X_modelado[mask_train_cmp]
+                                        y_cmp = clases_activas[mask_train_cmp]
+                                        if mascara_cmp is not None:
+                                            X_cmp = X_cmp[:, mascara_cmp]
+                                        modelos_para_comparar = {
+                                            n: mu.clone(resultados[n]["modelo_final"]) for n in modelos_exitosos
+                                        }
+                                        with st.spinner("Running cross-validation for every model on the same folds..."):
+                                            pvalores, puntajes = mu.comparar_modelos_estadisticamente(
+                                                modelos_para_comparar, X_cmp, y_cmp, es_clasificacion=True,
+                                                cv=st.session_state["clf_cv_folds"],
+                                            )
+                                    st.session_state["clf_pvalores"] = pvalores
+                                    st.session_state["clf_puntajes_cv"] = puntajes
+                                    st.session_state["clf_comparacion_metodo"] = (
+                                        "McNemar's test on the held-out test set" if hay_test_clf
+                                        else "Paired t-test on cross-validation folds (no test set configured)"
+                                    )
+                                if "clf_pvalores" in st.session_state:
+                                    interpretacion = mu.interpretar_comparacion_modelos(
+                                        st.session_state["clf_pvalores"], st.session_state["clf_puntajes_cv"],
+                                    )
+                                    if interpretacion["hay_diferencias"]:
+                                        for msg in interpretacion["mensajes"]:
+                                            st.success(msg)
+                                    else:
+                                        st.info(interpretacion["mensajes"][0])
+                                    st.markdown("**p-values:**")
+                                    st.dataframe(st.session_state["clf_pvalores"].style.format("{:.4f}"), width='stretch')
 
                     _m_rs = st.session_state.get("clf_mascara_variables")
                     _ui_remuestreo("clf", {n_: mu.clone(r_["modelo_final"]) for n_, r_ in resultados.items() if "error" not in r_},
@@ -4850,33 +4963,36 @@ if _abierta(tabs[12]):
                             file_name=f"predictions_{nombre_detalle}_{fuente}.csv", mime="text/csv",
                         )
 
-                        with st.expander(f"📈 Learning curve — {nombre_detalle}"):
-                            st.caption("Shows performance vs. how many training samples were used. If both "
-                                       "curves are still rising and far apart, more samples would likely help. "
-                                       "If they're flat and close together, the model has plateaued.")
-                            if st.button("Compute learning curve", key="curva_aprendizaje_clf"):
-                                mascara_lc = st.session_state["clf_mascara_variables"]
-                                X_lc = X_modelado[:, mascara_lc] if mascara_lc is not None else X_modelado
-                                with st.spinner("Training with increasing sample sizes (this may take a few minutes)..."):
-                                    curva = mu.calcular_curva_aprendizaje(
-                                        mu.clone(res["modelo_final"]), X_lc, clases_activas, es_clasificacion=True,
-                                        cv=min(5, st.session_state["clf_cv_folds"]) if st.session_state["clf_cv_folds"] != "LOO" else 5,
-                                    )
-                                st.session_state["clf_curva_aprendizaje"] = curva
-                                st.session_state["clf_curva_modelo"] = nombre_detalle
-                            if st.session_state.get("clf_curva_modelo") == nombre_detalle and "clf_curva_aprendizaje" in st.session_state:
-                                curva = st.session_state["clf_curva_aprendizaje"]
-                                fig_lc = go.Figure()
-                                fig_lc.add_trace(go.Scatter(x=curva["train_sizes"], y=curva["train_scores_mean"],
-                                                             mode="lines+markers", name="Training score",
-                                                             line=dict(color="#185FA5")))
-                                fig_lc.add_trace(go.Scatter(x=curva["train_sizes"], y=curva["val_scores_mean"],
-                                                             mode="lines+markers", name="Cross-validation score",
-                                                             line=dict(color="#B91C1C")))
-                                fig_lc.update_layout(height=380, xaxis_title="Training set size (samples)",
-                                                      yaxis_title=curva["scoring"])
-                                st.plotly_chart(fig_lc, width='stretch')
-                                st.info(_diagnostico_curva(curva))
+                        if _BASICO:
+                            st.caption(T("🔒 Learning curve — advanced, greyed out in First steps mode."))  # LOCKED
+                        else:
+                            with st.expander(f"📈 Learning curve — {nombre_detalle}"):
+                                st.caption("Shows performance vs. how many training samples were used. If both "
+                                           "curves are still rising and far apart, more samples would likely help. "
+                                           "If they're flat and close together, the model has plateaued.")
+                                if st.button("Compute learning curve", key="curva_aprendizaje_clf"):
+                                    mascara_lc = st.session_state["clf_mascara_variables"]
+                                    X_lc = X_modelado[:, mascara_lc] if mascara_lc is not None else X_modelado
+                                    with st.spinner("Training with increasing sample sizes (this may take a few minutes)..."):
+                                        curva = mu.calcular_curva_aprendizaje(
+                                            mu.clone(res["modelo_final"]), X_lc, clases_activas, es_clasificacion=True,
+                                            cv=min(5, st.session_state["clf_cv_folds"]) if st.session_state["clf_cv_folds"] != "LOO" else 5,
+                                        )
+                                    st.session_state["clf_curva_aprendizaje"] = curva
+                                    st.session_state["clf_curva_modelo"] = nombre_detalle
+                                if st.session_state.get("clf_curva_modelo") == nombre_detalle and "clf_curva_aprendizaje" in st.session_state:
+                                    curva = st.session_state["clf_curva_aprendizaje"]
+                                    fig_lc = go.Figure()
+                                    fig_lc.add_trace(go.Scatter(x=curva["train_sizes"], y=curva["train_scores_mean"],
+                                                                 mode="lines+markers", name="Training score",
+                                                                 line=dict(color="#185FA5")))
+                                    fig_lc.add_trace(go.Scatter(x=curva["train_sizes"], y=curva["val_scores_mean"],
+                                                                 mode="lines+markers", name="Cross-validation score",
+                                                                 line=dict(color="#B91C1C")))
+                                    fig_lc.update_layout(height=380, xaxis_title="Training set size (samples)",
+                                                          yaxis_title=curva["scoring"])
+                                    st.plotly_chart(fig_lc, width='stretch')
+                                    st.info(_diagnostico_curva(curva))
 
 
                         st.divider()
@@ -4954,6 +5070,10 @@ if _abierta(tabs[12]):
                                 secciones_rep.append({"tipo": "imagen",
                                     "fig": ru.fig_comparacion_pvalores(st.session_state["clf_pvalores"])})
 
+                            try:
+                                secciones_rep += inf._b_remuestreo(st.session_state, "clf")
+                            except Exception:
+                                pass
                             pdf_reporte_clf = _generar_reporte(
                                 "Classification Report", f"Models: {', '.join(modelos_elegidos)}", secciones_rep,
                             )
@@ -5497,12 +5617,14 @@ if _abierta(tabs[14]):
                              "run — the results table below will show every metric for each of them.",
                     key="ac_reg_models")
                     metodo_seleccion_r = st.selectbox(
-                        "Variable selection", ["None", "Boruta", "Genetic Algorithm"], key="sel_var_reg",
+                        "Variable selection", ["None", "Boruta", "Genetic Algorithm"], key="sel_var_reg", disabled=_BASICO,
                         help="Reduce the spectrum to just the most informative wavenumbers before "
                              "training. Boruta is conservative and keeps anything that helps at all; "
                              "the Genetic Algorithm explores combinations more freely but is slower and "
                              "a bit more random. 'None' uses the full spectrum.",
                     )
+                    if _BASICO:
+                        metodo_seleccion_r = "None"
                     gu.pros_cons("seleccion", metodo_seleccion_r, key="pc_sel_reg")
                 with col2:
                     cv_folds_sel_r = st.selectbox(
@@ -5524,11 +5646,13 @@ if _abierta(tabs[14]):
                                                   "this and use every sample for cross-validation instead.")
                     metodo_split_sel_r, metodo_split_r, semilla_reg = _ui_split(False, prop_test_r, "split_reg")
                     optimizar_r = st.checkbox(
-                        "Optimize hyperparameters (slower)", key="opt_reg",
+                        "Optimize hyperparameters (slower)", key="opt_reg", disabled=_BASICO,
                         help="Automatically search for better settings for each model instead of using "
                              "the defaults. Usually improves results a bit, at the cost of extra "
                              "computation time.",
                     )
+                    if _BASICO:
+                        optimizar_r = False
                     if optimizar_r:
                         st.caption("Search ranges in use: **" + st.session_state.get("hp_modo_aplicado", HP_MODOS[1])
                                    + "** — change them in the 🎛️ Hyperparameters tab.")
@@ -5609,7 +5733,7 @@ if _abierta(tabs[14]):
                         _idx_split_reg = _rr["idx_split"]
                     else:
                         for _clave in ["reg_pvalores", "reg_puntajes_cv", "reg_comparacion_metodo",
-                                        "reg_curva_aprendizaje", "reg_curva_modelo", "reg_ultima_ficha"]:
+                                        "reg_curva_aprendizaje", "reg_curva_modelo", "reg_ultima_ficha", "reg_rs_res"]:
                             st.session_state.pop(_clave, None)
                         _idx_split_reg = None
                         if prop_test_r > 0:
@@ -5784,58 +5908,61 @@ if _abierta(tabs[14]):
                     modelos_exitosos_r = [n for n in resultados_r if "error" not in resultados_r[n]]
                     if len(modelos_exitosos_r) >= 2:
                         hay_test_reg = "test" in resultados_r[modelos_exitosos_r[0]]
-                        with st.expander("📊 Compare models statistically"):
-                            if hay_test_reg:
-                                st.caption("Compares models on the held-out TEST set predictions, sample by "
-                                           "sample (paired t-test on squared errors) — this is what can "
-                                           "actually reveal overfitting, since two models can look equally "
-                                           "good in cross-validation yet behave very differently on genuinely "
-                                           "unseen data. A p-value below 0.05 means the difference is unlikely "
-                                           "to be just chance.")
-                            else:
-                                st.caption("No independent test set was configured, so this compares models "
-                                           "using a paired t-test on their per-fold cross-validation scores "
-                                           "instead (same folds for every model). Note this can't detect "
-                                           "overfitting the way a held-out test set would — consider setting "
-                                           "aside a test proportion above 0% for a more trustworthy comparison.")
-                            if st.button("Run comparison", key="comparar_modelos_reg"):
+                        if _BASICO:
+                            st.caption(T("🔒 Compare models statistically — advanced, greyed out in First steps mode."))  # LOCKED
+                        else:
+                            with st.expander("📊 Compare models statistically"):
                                 if hay_test_reg:
-                                    pvalores_r, puntajes_r = mu.comparar_modelos_en_test(
-                                        {n: resultados_r[n] for n in modelos_exitosos_r}, es_clasificacion=False,
-                                    )
+                                    st.caption("Compares models on the held-out TEST set predictions, sample by "
+                                               "sample (paired t-test on squared errors) — this is what can "
+                                               "actually reveal overfitting, since two models can look equally "
+                                               "good in cross-validation yet behave very differently on genuinely "
+                                               "unseen data. A p-value below 0.05 means the difference is unlikely "
+                                               "to be just chance.")
                                 else:
-                                    mascara_cmp_r = st.session_state["reg_mascara_variables"]
-                                    ids_train_ref_r = resultados_r[modelos_exitosos_r[0]]["cv"]["ids"]
-                                    mask_train_cmp_r = np.isin(ids_reg, ids_train_ref_r)
-                                    X_cmp_r = X_reg[mask_train_cmp_r]
-                                    y_cmp_r = y_reg[mask_train_cmp_r]
-                                    if mascara_cmp_r is not None:
-                                        X_cmp_r = X_cmp_r[:, mascara_cmp_r]
-                                    modelos_para_comparar_r = {
-                                        n: mu.clone(resultados_r[n]["modelo_final"]) for n in modelos_exitosos_r
-                                    }
-                                    with st.spinner("Running cross-validation for every model on the same folds..."):
-                                        pvalores_r, puntajes_r = mu.comparar_modelos_estadisticamente(
-                                            modelos_para_comparar_r, X_cmp_r, y_cmp_r, es_clasificacion=False,
-                                            cv=st.session_state["reg_cv_folds"],
+                                    st.caption("No independent test set was configured, so this compares models "
+                                               "using a paired t-test on their per-fold cross-validation scores "
+                                               "instead (same folds for every model). Note this can't detect "
+                                               "overfitting the way a held-out test set would — consider setting "
+                                               "aside a test proportion above 0% for a more trustworthy comparison.")
+                                if st.button("Run comparison", key="comparar_modelos_reg"):
+                                    if hay_test_reg:
+                                        pvalores_r, puntajes_r = mu.comparar_modelos_en_test(
+                                            {n: resultados_r[n] for n in modelos_exitosos_r}, es_clasificacion=False,
                                         )
-                                st.session_state["reg_pvalores"] = pvalores_r
-                                st.session_state["reg_puntajes_cv"] = puntajes_r
-                                st.session_state["reg_comparacion_metodo"] = (
-                                    "Paired t-test on squared errors on the held-out test set" if hay_test_reg
-                                    else "Paired t-test on cross-validation folds (no test set configured)"
-                                )
-                            if "reg_pvalores" in st.session_state:
-                                interpretacion_r = mu.interpretar_comparacion_modelos(
-                                    st.session_state["reg_pvalores"], st.session_state["reg_puntajes_cv"],
-                                )
-                                if interpretacion_r["hay_diferencias"]:
-                                    for msg in interpretacion_r["mensajes"]:
-                                        st.success(msg)
-                                else:
-                                    st.info(interpretacion_r["mensajes"][0])
-                                st.markdown("**p-values:**")
-                                st.dataframe(st.session_state["reg_pvalores"].style.format("{:.4f}"), width='stretch')
+                                    else:
+                                        mascara_cmp_r = st.session_state["reg_mascara_variables"]
+                                        ids_train_ref_r = resultados_r[modelos_exitosos_r[0]]["cv"]["ids"]
+                                        mask_train_cmp_r = np.isin(ids_reg, ids_train_ref_r)
+                                        X_cmp_r = X_reg[mask_train_cmp_r]
+                                        y_cmp_r = y_reg[mask_train_cmp_r]
+                                        if mascara_cmp_r is not None:
+                                            X_cmp_r = X_cmp_r[:, mascara_cmp_r]
+                                        modelos_para_comparar_r = {
+                                            n: mu.clone(resultados_r[n]["modelo_final"]) for n in modelos_exitosos_r
+                                        }
+                                        with st.spinner("Running cross-validation for every model on the same folds..."):
+                                            pvalores_r, puntajes_r = mu.comparar_modelos_estadisticamente(
+                                                modelos_para_comparar_r, X_cmp_r, y_cmp_r, es_clasificacion=False,
+                                                cv=st.session_state["reg_cv_folds"],
+                                            )
+                                    st.session_state["reg_pvalores"] = pvalores_r
+                                    st.session_state["reg_puntajes_cv"] = puntajes_r
+                                    st.session_state["reg_comparacion_metodo"] = (
+                                        "Paired t-test on squared errors on the held-out test set" if hay_test_reg
+                                        else "Paired t-test on cross-validation folds (no test set configured)"
+                                    )
+                                if "reg_pvalores" in st.session_state:
+                                    interpretacion_r = mu.interpretar_comparacion_modelos(
+                                        st.session_state["reg_pvalores"], st.session_state["reg_puntajes_cv"],
+                                    )
+                                    if interpretacion_r["hay_diferencias"]:
+                                        for msg in interpretacion_r["mensajes"]:
+                                            st.success(msg)
+                                    else:
+                                        st.info(interpretacion_r["mensajes"][0])
+                                    st.markdown("**p-values:**")
+                                    st.dataframe(st.session_state["reg_pvalores"].style.format("{:.4f}"), width='stretch')
 
                     _m_rs_r = st.session_state.get("reg_mascara_variables")
                     _ui_remuestreo("reg", {n_: mu.clone(r_["modelo_final"]) for n_, r_ in resultados_r.items() if "error" not in r_},
@@ -5913,33 +6040,36 @@ if _abierta(tabs[14]):
                         else:
                             y_t, y_p, ids_f, fuente_r = y_t_cv, y_p_cv, ids_cv, "Training (CV)"
 
-                        with st.expander(f"📈 Learning curve — {nombre_detalle_r}"):
-                            st.caption("Shows performance vs. how many training samples were used. If both "
-                                       "curves are still rising and far apart, more samples would likely help. "
-                                       "If they're flat and close together, the model has plateaued.")
-                            if st.button("Compute learning curve", key="curva_aprendizaje_reg"):
-                                mascara_lc_r = st.session_state["reg_mascara_variables"]
-                                X_lc_r = X_reg[:, mascara_lc_r] if mascara_lc_r is not None else X_reg
-                                with st.spinner("Training with increasing sample sizes (this may take a few minutes)..."):
-                                    curva_r = mu.calcular_curva_aprendizaje(
-                                        mu.clone(res["modelo_final"]), X_lc_r, y_reg, es_clasificacion=False,
-                                        cv=min(5, st.session_state["reg_cv_folds"]) if st.session_state["reg_cv_folds"] != "LOO" else 5,
-                                    )
-                                st.session_state["reg_curva_aprendizaje"] = curva_r
-                                st.session_state["reg_curva_modelo"] = nombre_detalle_r
-                            if st.session_state.get("reg_curva_modelo") == nombre_detalle_r and "reg_curva_aprendizaje" in st.session_state:
-                                curva_r = st.session_state["reg_curva_aprendizaje"]
-                                fig_lc_r = go.Figure()
-                                fig_lc_r.add_trace(go.Scatter(x=curva_r["train_sizes"], y=curva_r["train_scores_mean"],
-                                                               mode="lines+markers", name="Training score",
-                                                               line=dict(color="#185FA5")))
-                                fig_lc_r.add_trace(go.Scatter(x=curva_r["train_sizes"], y=curva_r["val_scores_mean"],
-                                                               mode="lines+markers", name="Cross-validation score",
-                                                               line=dict(color="#B91C1C")))
-                                fig_lc_r.update_layout(height=380, xaxis_title="Training set size (samples)",
-                                                        yaxis_title=curva_r["scoring"])
-                                st.plotly_chart(fig_lc_r, width='stretch')
-                                st.info(_diagnostico_curva(curva_r))
+                        if _BASICO:
+                            st.caption(T("🔒 Learning curve — advanced, greyed out in First steps mode."))  # LOCKED
+                        else:
+                            with st.expander(f"📈 Learning curve — {nombre_detalle_r}"):
+                                st.caption("Shows performance vs. how many training samples were used. If both "
+                                           "curves are still rising and far apart, more samples would likely help. "
+                                           "If they're flat and close together, the model has plateaued.")
+                                if st.button("Compute learning curve", key="curva_aprendizaje_reg"):
+                                    mascara_lc_r = st.session_state["reg_mascara_variables"]
+                                    X_lc_r = X_reg[:, mascara_lc_r] if mascara_lc_r is not None else X_reg
+                                    with st.spinner("Training with increasing sample sizes (this may take a few minutes)..."):
+                                        curva_r = mu.calcular_curva_aprendizaje(
+                                            mu.clone(res["modelo_final"]), X_lc_r, y_reg, es_clasificacion=False,
+                                            cv=min(5, st.session_state["reg_cv_folds"]) if st.session_state["reg_cv_folds"] != "LOO" else 5,
+                                        )
+                                    st.session_state["reg_curva_aprendizaje"] = curva_r
+                                    st.session_state["reg_curva_modelo"] = nombre_detalle_r
+                                if st.session_state.get("reg_curva_modelo") == nombre_detalle_r and "reg_curva_aprendizaje" in st.session_state:
+                                    curva_r = st.session_state["reg_curva_aprendizaje"]
+                                    fig_lc_r = go.Figure()
+                                    fig_lc_r.add_trace(go.Scatter(x=curva_r["train_sizes"], y=curva_r["train_scores_mean"],
+                                                                   mode="lines+markers", name="Training score",
+                                                                   line=dict(color="#185FA5")))
+                                    fig_lc_r.add_trace(go.Scatter(x=curva_r["train_sizes"], y=curva_r["val_scores_mean"],
+                                                                   mode="lines+markers", name="Cross-validation score",
+                                                                   line=dict(color="#B91C1C")))
+                                    fig_lc_r.update_layout(height=380, xaxis_title="Training set size (samples)",
+                                                            yaxis_title=curva_r["scoring"])
+                                    st.plotly_chart(fig_lc_r, width='stretch')
+                                    st.info(_diagnostico_curva(curva_r))
 
 
                         with st.expander(f"📐 Williams plot (leverage vs. residual) — {nombre_detalle_r}"):
@@ -6044,6 +6174,10 @@ if _abierta(tabs[14]):
                                 secciones_rep_r.append({"tipo": "imagen",
                                     "fig": ru.fig_comparacion_pvalores(st.session_state["reg_pvalores"])})
 
+                            try:
+                                secciones_rep_r += inf._b_remuestreo(st.session_state, "reg")
+                            except Exception:
+                                pass
                             pdf_reporte_reg = _generar_reporte(
                                 "Regression Report", f"Models: {', '.join(modelos_elegidos_r)}", secciones_rep_r,
                             )
@@ -6766,14 +6900,17 @@ if _abierta(tabs[11]):
             _tarea = st.selectbox("What do you want to screen?", ["Classification", "Regression", "SIMCA"],
                                   key="scr_w_tarea", help="Whether to compare pre-treatments, variable-selection strategies, or algorithms.")
             _datos_ok = True
-            if _tarea in ("Classification", "SIMCA"):
+            if _BASICO and _tarea == "SIMCA":
+                st.info(T("🔒 SIMCA is an advanced tool. Switch to **🔬 I have experience** at the top of the page to unlock it."))
+                _datos_ok = False
+            if _datos_ok and _tarea in ("Classification", "SIMCA"):
                 if _clases_s is None:
                     st.warning("Define classes in the left-hand panel first.")
                     _datos_ok = False
                 elif pd.Series(_clases_s).value_counts().min() < 4:
                     st.error("Some class has fewer than 4 samples — too few to train, cross-validate and test.")
                     _datos_ok = False
-            else:
+            elif _datos_ok:
                 if _valores_s is None:
                     st.warning("Load the reference values (left-hand panel) to screen regression models.")
                     _datos_ok = False
@@ -6809,7 +6946,7 @@ if _abierta(tabs[11]):
                 _sel_sel, _alg_sel, _var_sel = ["-"], ["SIMCA"], [0.95]
                 if _tarea != "SIMCA":
                     _sel_sel = st.multiselect("Variable selection", ["None", "Boruta", "Genetic Algorithm"],
-                                              default=["None"], key="scr_w_sel",
+                                              default=["None"], key="scr_w_sel", disabled=_BASICO,
                                               help="Boruta / genetic algorithm are the slowest part of a screening.")
                     _cat = mu.crear_clasificadores() if _tarea == "Classification" else mu.crear_regresores()
                     _def_alg = ["LDA", "PLS-DA", "Random Forest", "SVM"] if _tarea == "Classification" \
@@ -6842,20 +6979,22 @@ if _abierta(tabs[11]):
                     _split_m_s = ("kennard_stone" if _split_sel_s.startswith(("Kennard", "SPXY"))
                                   else ("random_strat" if "stratified" in _split_sel_s else "random"))
                     _opt_s = _s3.checkbox("Optimize hyperparameters (fastest preset)", value=False, key="scr_w_opt",
-                                          disabled=_tarea == "SIMCA",
+                                          disabled=(_tarea == "SIMCA") or _BASICO,
                                           help="Random search over 8 combinations — the quickest search option, but it still "
                                                "multiplies the time by several. Off by default: screen first, then "
                                                "optimize the best candidates in the Classification / Regression tabs.")
+                    if _BASICO:
+                        _opt_s = False
                     _hp_op = ["As applied in the 🎛️ Hyperparameters tab"] + HP_MODOS
                     _hp_sel = st.selectbox("Hyperparameter ranges for the optimization", _hp_op, key="scr_w_hpmodo",
-                                           disabled=(not _opt_s) or _tarea == "SIMCA",
+                                           disabled=(not _opt_s) or _tarea == "SIMCA" or _BASICO,
                                            help="Only used when 'Optimize hyperparameters' is ticked. 'As applied' uses whatever you applied "
                                                 "in the Hyperparameters tab; the other options override it for this screening only.")
                     _hp_modo_s = None if _hp_sel == _hp_op[0] else _hp_sel
                     _b1, _b2, _b3 = st.columns(3)
-                    _bor_s = _b1.number_input("Boruta iterations", 10, 500, 50, step=10, key="scr_w_bor", help="More iterations give a more stable selection but take longer.")
-                    _gap_s = _b2.number_input("Genetic algorithm: population", 6, 60, 12, step=2, key="scr_w_gap", help="Candidate solutions per generation. Larger = better search, slower.")
-                    _gag_s = _b3.number_input("Genetic algorithm: generations", 3, 40, 6, step=1, key="scr_w_gag", help="Generations of the search. More = better, slower.")
+                    _bor_s = _b1.number_input("Boruta iterations", 10, 500, 50, step=10, key="scr_w_bor", disabled=_BASICO, help="More iterations give a more stable selection but take longer.")
+                    _gap_s = _b2.number_input("Genetic algorithm: population", 6, 60, 12, step=2, key="scr_w_gap", disabled=_BASICO, help="Candidate solutions per generation. Larger = better search, slower.")
+                    _gag_s = _b3.number_input("Genetic algorithm: generations", 3, 40, 6, step=1, key="scr_w_gag", disabled=_BASICO, help="Generations of the search. More = better, slower.")
 
                 # ---------------- how big is this?
                 _n_rec, _n_esp = len(_recetas_sel), len(_esp_sel)

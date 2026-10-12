@@ -567,6 +567,47 @@ def _b_screening(ss, desact):
     return b
 
 
+def _b_remuestreo(ss, pref):
+    """Resampling section (repeated hold-out / bootstrap) of the Classification or Regression tab."""
+    res = ss.get(f"{pref}_rs_res")
+    if not res:
+        return []
+    cfg = ss.get(f"{pref}_rs_cfg") or {}
+    boot = bool(ss.get(f"{pref}_rs_boot"))
+    b = [{"tipo": "subtitulo", "texto": "Resampling: metrics with their uncertainty"}]
+    if boot:
+        txt = (f"Bootstrap (out-of-bag): {cfg.get('n', 'n/a')} repetitions. In each one the model was trained on N samples drawn "
+               "with replacement and tested on the samples never drawn (about 37 %).")
+    else:
+        txt = (f"Repeated hold-out (Monte Carlo): {cfg.get('n', 'n/a')} random train/test splits"
+               + (f" with {int(round(cfg.get('prop', 0) * 100))}% of the samples as test" if cfg.get("prop") else "")
+               + ". The model was refitted on every split.")
+    b.append({"tipo": "parrafo", "texto": txt + " Values are mean +/- standard deviation over the repetitions"
+                                              + (" and the 95% interval (2.5-97.5 percentiles)." if boot else ".")})
+    metricas = [c for c in next(iter(res.values())).columns if c != "split"]
+    enc = ["Model"] + [m + (" (mean +/- SD; 95% CI)" if boot else " (mean +/- SD)") for m in metricas]
+    filas = []
+    for nm, df in res.items():
+        f = [nm]
+        for m in metricas:
+            t = f"{df[m].mean():.3f} +/- {df[m].std(ddof=1):.3f}"
+            if boot:
+                t += f"; {df[m].quantile(0.025):.3f}-{df[m].quantile(0.975):.3f}"
+            f.append(t)
+        filas.append(f)
+    b.append({"tipo": "tabla", "encabezados": enc, "filas": filas})
+    b.append({"tipo": "imagen", "fig": ru.fig_remuestreo(res, metricas[0]), "ancho_mm": 130})
+    medias = {nm: float(df[metricas[0]].mean()) for nm, df in res.items()}
+    sds = {nm: float(df[metricas[0]].std(ddof=1)) for nm, df in res.items()}
+    ord_ = sorted(medias, key=medias.get, reverse=True)
+    msg = f"Highest mean {metricas[0]}: {ord_[0]} ({medias[ord_[0]]:.3f} +/- {sds[ord_[0]]:.3f})."
+    if len(ord_) > 1 and medias[ord_[0]] - medias[ord_[1]] < max(sds[ord_[0]], sds[ord_[1]]):
+        msg += (f" {ord_[0]} and {ord_[1]} differ by less than their standard deviation, so the difference between them "
+                "cannot be considered real.")
+    b.append({"tipo": "parrafo", "texto": msg})
+    return b
+
+
 def _b_clf(ss, desact, detalle):
     res_all = ss["clf_resultados"]
     cv = ss.get("clf_cv_folds")
@@ -623,6 +664,7 @@ def _b_clf(ss, desact, detalle):
             b.append({"tipo": "imagen", "fig": ru.fig_matriz_confusion(M, clases_orden), "ancho_mm": 120})
         if ss.get("clf_curva_modelo") == nombre and ss.get("clf_curva_aprendizaje") is not None:
             b.append({"tipo": "imagen", "fig": ru.fig_curva_aprendizaje(ss["clf_curva_aprendizaje"], nombre)})
+    b += _b_remuestreo(ss, "clf")
     return b
 
 
@@ -712,6 +754,7 @@ def _b_reg(ss, desact, detalle):
                       "ancho_mm": 130})
         if ss.get("reg_curva_modelo") == nombre and ss.get("reg_curva_aprendizaje") is not None:
             b.append({"tipo": "imagen", "fig": ru.fig_curva_aprendizaje(ss["reg_curva_aprendizaje"], nombre)})
+    b += _b_remuestreo(ss, "reg")
     return b
 
 
