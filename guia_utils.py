@@ -387,6 +387,11 @@ PROS_CONTRAS = {
     "split_clf": {
         "title": "How to choose the test set (classification)",
         "items": {
+            "Random": (
+                ["Simplest and unbiased: every sample has the same chance.", "Needs no extra decisions."],
+                ["With few samples a small class may end up (almost) absent from the test set.",
+                 "The result depends on the seed — different seeds give different scores."],
+                "Large datasets with balanced classes."),
             "Random (stratified)": (
                 ["Simple and unbiased: every sample has the same chance.",
                  "Stratified: each class keeps its proportion in train and test.",

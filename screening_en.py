@@ -256,7 +256,7 @@ def ejecutar(tarea, datos, cfg, aplicar_paso, al_terminar_fila=None, progreso=No
                 X_e, eje_e = X_r, eje_r
 
             try:
-                idx_tr, idx_te = mu.dividir_train_test(X_e, y, ids, prop, es_clf, 0, "random")
+                idx_tr, idx_te = mu.dividir_train_test(X_e, y, ids, prop, es_clf, int(cfg.get("semilla", 0)), cfg.get("metodo_split", "random_strat"))
             except Exception as e:
                 for sel in seleccion:
                     for alg in algoritmos:
@@ -341,7 +341,8 @@ def ejecutar(tarea, datos, cfg, aplicar_paso, al_terminar_fila=None, progreso=No
                             hp = ", ".join(f"{k}={v}" for k, v in mejores.items())
                         func = mu.entrenar_evaluar_clasificacion if es_clf else mu.entrenar_evaluar_regresion
                         res = func(modelo, X_s, y, ids=ids, cv=int(cfg["cv"]),
-                                   proporcion_test=prop, metodo_split="random")
+                                   proporcion_test=prop, metodo_split=cfg.get("metodo_split", "random_strat"),
+                                   random_state=int(cfg.get("semilla", 0)), indices_split=(idx_tr, idx_te))
                         fila = (_fila_clasificacion if es_clf else _fila_regresion)(
                             base, res, X_s.shape[1], hp, time.perf_counter() - t0)
                     except Exception as e:

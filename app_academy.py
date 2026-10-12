@@ -589,6 +589,43 @@ def _grilla_activa(nombre, es_clf, X, y, prop_test, cv, modo=None):
         return base
 
 
+def _ui_split(es_clf, prop, key, simca=False):
+    """Shared selector of the test-set split method (+ random seed). Returns (label, metodo, semilla)."""
+    if es_clf:
+        opciones = ["Random", "Random (stratified)", "Kennard-Stone (representative)"]
+        pc = "split_clf"
+    else:
+        opciones = ["Random", "Random (stratified by y range)", "SPXY (extended Kennard-Stone)"]
+        pc = "split_reg"
+    _ayuda_clf = ("How to choose which samples go into the independent test set. 'Random' picks them purely by chance. "
+                  "'Random (stratified)' also uses chance, but keeps the proportion of each class equal in train and test. "
+                  "'Kennard-Stone' instead picks the training set to cover the whole spectral space, class by class.")
+    _ayuda_reg = ("How to choose which samples go into the independent test set. 'Random' picks them purely by chance. "
+                  "'Random (stratified by y range)' also uses chance, but keeps the proportion of each level of y (quantile bins) equal in train and test. "
+                  "'SPXY' (extended Kennard-Stone, Galvão 2005) picks the training set to cover both the spectral space and the y range.")
+    sel = st.selectbox("Test set selection", opciones, index=1, disabled=(prop == 0), key=key,
+                       help=_ayuda_clf if es_clf else _ayuda_reg)
+    if sel.startswith("Kennard-Stone") or sel.startswith("SPXY"):
+        metodo = "kennard_stone"
+    elif "stratified" in sel:
+        metodo = "random_strat"
+    else:
+        metodo = "random"
+    semilla = st.number_input(
+        "Random seed", min_value=0, max_value=999999, value=0, step=1, key=key + "_seed",
+        disabled=(prop == 0 or metodo == "kennard_stone"),
+        help="The seed fixes the 'random' draw: the same seed always gives exactly the same train/test split "
+             "(and the same cross-validation folds), so your results are reproducible. Change it to see how much "
+             "the result depends on the luck of the split (or use the resampling section below to repeat it many times). "
+             "Kennard-Stone/SPXY involve no randomness, so the seed is not used there.")
+    gu.pros_cons(pc, sel, key="pc_" + key)
+    if metodo == "kennard_stone":
+        st.caption("ℹ️ Kennard-Stone is deterministic: it picks the TRAINING set to cover the spectral space within EACH class separately (including the more 'extreme' samples); the remaining, more 'typical' samples become the test set. No seed is needed."
+                   if es_clf else
+                   "ℹ️ SPXY is deterministic: it picks the TRAINING set to cover BOTH the spectral space and the y range (including the more 'extreme' samples); the remaining, more 'typical' samples become the test set. No seed is needed.")
+    return sel, metodo, int(semilla)
+
+
 def _diagnostico_curva(curva):
     """Plain-language reading of a learning curve (train vs. cross-validation)."""
     try:
@@ -613,45 +650,65 @@ def _diagnostico_curva(curva):
         return ""
 
 
-def _ui_remuestreo(pref, modelo, X, y, es_clf, prop_default=0.25):
-    """Optional resampling: many random train/test splits → metrics with their uncertainty."""
-    with st.expander("🔁 Resampling — how stable is the result? (optional)",
-                     expanded=(st.session_state.get(f"{pref}_rs_res") is not None
-                               or bool(st.session_state.get(f"{pref}_rs_err")))):
-        st.caption("A single train/test split can be lucky or unlucky. Here the split is **repeated many times** "
-                   "(random" + (", stratified by class" if es_clf else "") + "); the model is refitted each time with the same "
-                   "hyperparameters and tested on the samples left out. The mean ± standard deviation tells you the "
-                   "result you can honestly expect and how much it depends on which samples ended up in the test set.")
-        c1, c2 = st.columns(2)
-        n_rep = c1.slider("Number of repetitions", 5, 100, 20, step=5, key=f"{pref}_rs_n")
+def _ui_remuestreo(pref, modelos, X, y, es_clf, prop_default=0.25):
+    """Optional resampling for ALL trained models: many random train/test splits → metrics ± SD."""
+    st.markdown("#### 🔁 Resampling: metrics with their uncertainty (optional)")
+    st.caption("A single train/test split can be lucky or unlucky. Here the split is **repeated many times** (random"
+               + (", stratified by class" if es_clf else "") + "); every trained model is refitted each time with the same "
+               "hyperparameters and tested on the samples left out. The mean ± standard deviation tells you the "
+               "result you can honestly expect and how much it depends on which samples ended up in the test set.")
+    metodo_rs = st.radio("Resampling method", ["Repeated hold-out (Monte Carlo)", "Bootstrap (out-of-bag)"],
+                         horizontal=True, key=f"{pref}_rs_met",
+                         help="Repeated hold-out: each repetition holds out a fixed fraction of the samples as test, drawn at random without replacement. "
+                              "Bootstrap: each repetition trains on N samples drawn WITH replacement (some repeated, ~63 % distinct) and tests on the samples that were never drawn (out-of-bag, ~37 %); the test samples are never in that training set. "
+                              "Both rotate the samples between train and test, so no single lucky or unlucky test set decides the result.")
+    _boot = metodo_rs.startswith("Bootstrap")
+    c1, c2, c3 = st.columns([1, 1, 1])
+    n_rep = c1.slider("Number of repetitions", 5, 200 if _boot else 100, 50 if _boot else 20, step=5, key=f"{pref}_rs_n{'b' if _boot else ''}")
+    if _boot:
+        prop = prop_default
+        c2.caption("The test set of each repetition is the out-of-bag samples (about 37 % of the data, it varies each time).")
+    else:
         prop = c2.slider("Test fraction (%)", 10, 40, int(prop_default * 100), step=5, key=f"{pref}_rs_prop") / 100
-        def _correr():
-            # runs BEFORE the page reruns, so the expander is already created open with the results
-            try:
-                st.session_state[f"{pref}_rs_res"] = mu.remuestreo_train_test(modelo, X, y, es_clf, int(n_rep), float(prop))
-                st.session_state[f"{pref}_rs_err"] = None
-            except Exception as e:
-                st.session_state[f"{pref}_rs_err"] = str(e)
-        st.button("▶ Run resampling", key=f"{pref}_rs_btn", on_click=_correr,
-                  help="Repeats the split and refits the model each time (a few seconds to a minute, depending on the model and the data).")
-        if st.session_state.get(f"{pref}_rs_err"):
-            st.error(f"Resampling failed: {st.session_state[f'{pref}_rs_err']}")
-        df = st.session_state.get(f"{pref}_rs_res")
-        if df is not None and len(df):
-            cols = [c for c in df.columns if c != "split"]
-            resumen = pd.DataFrame({"Metric": cols,
-                                    "Mean": [df[c].mean() for c in cols],
-                                    "SD": [df[c].std(ddof=1) for c in cols],
-                                    "Min": [df[c].min() for c in cols],
-                                    "Max": [df[c].max() for c in cols]})
-            st.dataframe(resumen.style.format({k: "{:.3f}" for k in ["Mean", "SD", "Min", "Max"]}), hide_index=True, width="stretch")
-            fig = go.Figure()
-            for c in cols:
-                fig.add_trace(go.Box(y=df[c], name=c, boxpoints="all", jitter=0.4, pointpos=0, marker=dict(size=4)))
-            fig.update_layout(height=340, showlegend=False)
-            st.plotly_chart(fig, width="stretch")
-            st.caption("Report as **mean ± SD** over the repetitions. A large SD means the result depends strongly on which "
-                       "samples are used for testing (typical of small datasets).")
+
+    def _correr():
+        # runs BEFORE the page reruns, so the results are already there when it redraws
+        try:
+            st.session_state[f"{pref}_rs_res"] = {nm: mu.remuestreo_train_test(m, X, y, es_clf, int(n_rep), float(prop),
+                                                                              metodo="bootstrap" if _boot else "holdout")
+                                                  for nm, m in modelos.items()}
+            st.session_state[f"{pref}_rs_boot"] = _boot
+            st.session_state[f"{pref}_rs_err"] = None
+        except Exception as e:
+            st.session_state[f"{pref}_rs_err"] = str(e)
+    c3.markdown("<div style='height:1.7rem'></div>", unsafe_allow_html=True)
+    c3.button("▶ Run resampling", key=f"{pref}_rs_btn", on_click=_correr, type="primary",
+              help="Repeats the split and refits every trained model each time (a few seconds to a few minutes, depending on the models and the data).")
+    if st.session_state.get(f"{pref}_rs_err"):
+        st.error(f"Resampling failed: {st.session_state[f'{pref}_rs_err']}")
+    res = st.session_state.get(f"{pref}_rs_res")
+    if res:
+        metricas = [c for c in next(iter(res.values())).columns if c != "split"]
+        filas = []
+        for nm, df in res.items():
+            fila = {"Model": nm}
+            for c in metricas:
+                fila[c] = f"{df[c].mean():.3f} ± {df[c].std(ddof=1):.3f}"
+                if st.session_state.get(f"{pref}_rs_boot"):
+                    fila[c + " (95% CI)"] = f"{df[c].quantile(0.025):.3f} – {df[c].quantile(0.975):.3f}"
+            filas.append(fila)
+        st.dataframe(pd.DataFrame(filas), hide_index=True, width="stretch")
+        principal = metricas[0]
+        fig = go.Figure()
+        for nm, df in res.items():
+            fig.add_trace(go.Box(y=df[principal], name=nm, boxpoints="all", jitter=0.4, pointpos=0, marker=dict(size=4)))
+        fig.update_layout(height=340, showlegend=False, yaxis_title=principal,
+                          title=dict(text=f"{principal} over {len(next(iter(res.values())))} " + ("bootstrap repetitions" if st.session_state.get(f"{pref}_rs_boot") else "random splits"), x=0.01))
+        st.plotly_chart(fig, width="stretch")
+        st.caption("Report as **mean ± SD** over the repetitions. A large SD means the result depends strongly on which "
+                   "samples are used for testing (typical of small datasets). If two models differ by less than their SD, "
+                   "you cannot say that one is really better.")
+        st.divider()
 
 
 def resetear_prefijo(prefijo):
@@ -4413,22 +4470,7 @@ if _abierta(tabs[12]):
                              "on data it has never influenced. 0 means skip this and use every sample "
                              "for cross-validation instead.",
                     key="ac_clf_ptest")
-                    metodo_split_sel = st.selectbox(
-                        "Test set selection", ["Random (stratified)", "Kennard-Stone (representative)"],
-                        disabled=(prop_test == 0),
-                        help="How to choose which samples go into the test set. 'Random' picks them by "
-                             "chance (stratified by class). 'Kennard-Stone' spreads the training set "
-                             "across the spectral range within each class instead — every class still "
-                             "ends up represented in both train and test.",
-                    key="ac_clf_split")
-                    metodo_split = "kennard_stone" if metodo_split_sel.startswith("Kennard-Stone") else "random"
-                    gu.pros_cons("split_clf", metodo_split_sel, key="pc_split_clf")
-                    if metodo_split == "kennard_stone":
-                        st.caption("ℹ️ Kennard-Stone picks the TRAINING set to broadly cover the spectral "
-                                   "space within EACH class separately (it will include the more 'extreme' "
-                                   "samples of each class); the remaining, more 'typical' samples of each "
-                                   "class become the test set — so every class is guaranteed to appear in "
-                                   "both.")
+                    metodo_split_sel, metodo_split, semilla_clf = _ui_split(True, prop_test, "ac_clf_split")
                     optimizar = st.checkbox(
                         "Optimize hyperparameters (slower)",
                         help="Automatically search for better settings for each model (e.g. how many "
@@ -4507,7 +4549,7 @@ if _abierta(tabs[12]):
                     if _rean_clf:
                         _r = _run_clf
                         modelos_elegidos = list(_r["modelos"]); cv_folds = _r["cv_folds"]; prop_test = _r["prop_test"]
-                        metodo_split = _r["metodo_split"]; metodo_split_sel = _r["metodo_split_sel"]
+                        metodo_split = _r["metodo_split"]; metodo_split_sel = _r["metodo_split_sel"]; semilla_clf = _r.get("semilla", 0)
                         optimizar = _r["optimizar"]; metodo_opt = _r["metodo_opt"]; metodo_seleccion = _r["metodo_seleccion"]
                         boruta_max_iter, boruta_alpha = _r["boruta_iter"], _r["boruta_alpha"]
                         ga_poblacion, ga_generaciones = _r["ga_pob"], _r["ga_gen"]
@@ -4524,13 +4566,13 @@ if _abierta(tabs[12]):
                         _idx_split_clf = None
                         if prop_test > 0:
                             try:
-                                _idx_split_clf = mu.dividir_train_test(X_modelado, clases_activas, ids_activos, prop_test, True, 0, metodo_split)
+                                _idx_split_clf = mu.dividir_train_test(X_modelado, clases_activas, ids_activos, prop_test, True, semilla_clf, metodo_split)
                             except Exception:
                                 _idx_split_clf = None
                         # Everything needed to RESUME is kept in this record and updated after every model.
                         st.session_state["clf_run"] = {
                             "completo": False, "firma": firma_modelos(_crop_mask_clf), "modelos": list(modelos_elegidos),
-                            "cv_folds": cv_folds, "prop_test": prop_test, "metodo_split": metodo_split,
+                            "cv_folds": cv_folds, "prop_test": prop_test, "metodo_split": metodo_split, "semilla": semilla_clf,
                             "metodo_split_sel": metodo_split_sel, "optimizar": optimizar, "metodo_opt": metodo_opt,
                             "metodo_seleccion": metodo_seleccion,
                             "boruta_iter": boruta_max_iter if metodo_seleccion == "Boruta" else None,
@@ -4613,7 +4655,7 @@ if _abierta(tabs[12]):
                                 st.session_state["clf_aug_desc"] = None
                                 resultados[nombre] = mu.entrenar_evaluar_clasificacion(
                                     modelo, X_sel, clases_activas, ids=ids_activos,
-                                    cv=cv_folds, proporcion_test=prop_test, metodo_split=metodo_split,
+                                    cv=cv_folds, proporcion_test=prop_test, metodo_split=metodo_split, random_state=semilla_clf,
                                     indices_split=_idx_split_clf,
                                 )
                             except Exception as e:
@@ -4759,6 +4801,10 @@ if _abierta(tabs[12]):
                                 st.markdown("**p-values:**")
                                 st.dataframe(st.session_state["clf_pvalores"].style.format("{:.4f}"), width='stretch')
 
+                    _m_rs = st.session_state.get("clf_mascara_variables")
+                    _ui_remuestreo("clf", {n_: mu.clone(r_["modelo_final"]) for n_, r_ in resultados.items() if "error" not in r_},
+                                   X_modelado[:, _m_rs] if _m_rs is not None else X_modelado, clases_activas, True)
+
                     nombre_detalle = st.selectbox(
                         "View details for", [n for n in resultados if "error" not in resultados[n]],
                         help="Choose which of the trained models to inspect below: confusion matrix, "
@@ -4832,10 +4878,6 @@ if _abierta(tabs[12]):
                                 st.plotly_chart(fig_lc, width='stretch')
                                 st.info(_diagnostico_curva(curva))
 
-                        _m_rs = st.session_state.get("clf_mascara_variables")
-                        _ui_remuestreo("clf", mu.clone(res["modelo_final"]),
-                                       X_modelado[:, _m_rs] if _m_rs is not None else X_modelado,
-                                       clases_activas, True)
 
                         st.divider()
                         st.markdown("**📄 Report for this analysis**")
@@ -4880,7 +4922,7 @@ if _abierta(tabs[12]):
                                 {"tipo": "clave_valor", "pares": [
                                     ("Cross-validation", f"{res['cv']['cv_folds_usados']}-fold" if cv_folds != "LOO"
                                      else f"Leave-One-Out ({res['cv']['cv_folds_usados']} repetitions)"),
-                                    ("Test proportion", f"{int(prop_test * 100)}% ({metodo_split_sel})"),
+                                    ("Test proportion", f"{int(prop_test * 100)}% ({metodo_split_sel}, seed {semilla_clf})" if metodo_split != "kennard_stone" else f"{int(prop_test * 100)}% ({metodo_split_sel})"),
                                 ]},
                                 {"tipo": "tabla",
                                  "encabezados": list(df_metricas_clf.columns),
@@ -5070,15 +5112,7 @@ if _abierta(tabs[13]):
                              "at 0 only checks how well the model fits the same data it was built from, "
                              "which is optimistic.",
                     )
-                    metodo_split_sel_simca = st.selectbox(
-                        "Test set selection", ["Random (stratified)", "Kennard-Stone (representative)"],
-                        disabled=(prop_test_simca == 0), key="split_simca",
-                        help="How to choose which samples go into the test set for each class. 'Random' "
-                             "picks them by chance; 'Kennard-Stone' spreads the calibration set across "
-                             "that class's spectral range instead.",
-                    )
-                    metodo_split_simca = "kennard_stone" if metodo_split_sel_simca.startswith("Kennard-Stone") else "random"
-                    gu.pros_cons("split_clf", metodo_split_sel_simca, key="pc_split_simca")
+                    metodo_split_sel_simca, metodo_split_simca, semilla_simca = _ui_split(True, prop_test_simca, "split_simca")
 
                 _run_simca = st.session_state.get("simca_run")
                 _incompleto_simca = bool(_run_simca) and not _run_simca.get("completo", True)
@@ -5095,7 +5129,7 @@ if _abierta(tabs[13]):
                 if _ent_simca or _rean_simca:
                     if _rean_simca:
                         _rs = _run_simca
-                        prop_test_simca = _rs["prop_test"]; metodo_split_sel_simca = _rs["metodo_split_sel"]
+                        prop_test_simca = _rs["prop_test"]; metodo_split_sel_simca = _rs["metodo_split_sel"]; semilla_simca = _rs.get("semilla", 0)
                         varianza_objetivo_simca = _rs["varianza"]; alpha_simca = _rs["alpha"]
                         regla_simca = _rs.get("regla", "Classical (T² and Q limits)")
                         idx_train_s, idx_test_s = _rs["idx_train"], _rs["idx_test"]
@@ -5105,14 +5139,14 @@ if _abierta(tabs[13]):
                         if prop_test_simca > 0:
                             idx_train_s, idx_test_s = mu.dividir_train_test(
                                 X_modelado_simca, clases_simca, ids_simca, prop_test_simca,
-                                es_clasificacion=True, metodo_split=metodo_split_simca,
+                                es_clasificacion=True, random_state=semilla_simca, metodo_split=metodo_split_simca,
                             )
                         else:
                             idx_train_s, idx_test_s = np.arange(len(clases_simca)), np.arange(len(clases_simca))
                         st.session_state["simca_run"] = {
                             "completo": False, "firma": firma_modelos(_crop_mask_simca), "clases": list(clases_unicas_simca),
                             "idx_train": idx_train_s, "idx_test": idx_test_s, "prop_test": prop_test_simca,
-                            "metodo_split_sel": metodo_split_sel_simca, "varianza": varianza_objetivo_simca,
+                            "metodo_split_sel": metodo_split_sel_simca, "semilla": semilla_simca, "varianza": varianza_objetivo_simca,
                             "alpha": alpha_simca, "regla": regla_simca, "modelos": {}, "errores": {},
                         }
                     _rs = st.session_state["simca_run"]
@@ -5488,27 +5522,7 @@ if _abierta(tabs[14]):
                                                   "to choose anything — only to get one final, honest check "
                                                   "of how the model performs on unseen data. 0 means skip "
                                                   "this and use every sample for cross-validation instead.")
-                    metodo_split_sel_r = st.selectbox(
-                        "Test set selection", ["Random", "Random (stratified by y range)", "SPXY (extended Kennard-Stone)"],
-                        disabled=(prop_test_r == 0), key="split_reg",
-                        help="How to choose which samples go into the test set. 'Random' picks them by "
-                             "chance. 'Random (stratified by y range)' also picks them by chance, but inside quantile bins "
-                             "of the reference value, so train and test cover low, medium and high values alike. "
-                             "'SPXY' is an extended version of Kennard-Stone made specifically "
-                             "for regression (Galvão et al., 2005): plain Kennard-Stone only looks at "
-                             "the spectra, with no guarantee the reference value (Y) range is well "
-                             "represented too; SPXY adds the Y range into the same calculation, so the "
-                             "training set is spread out across BOTH the spectral space AND the Y range "
-                             "at once. It's the standard, widely-used way to fix that gap.",
-                    )
-                    metodo_split_r = ("kennard_stone" if metodo_split_sel_r.startswith("SPXY")
-                                      else ("strat_y" if "stratified" in metodo_split_sel_r else "random"))
-                    gu.pros_cons("split_reg", metodo_split_sel_r, key="pc_split_reg")
-                    if metodo_split_r == "kennard_stone":
-                        st.caption("ℹ️ SPXY (an extended Kennard-Stone for regression) picks the TRAINING "
-                                   "set to broadly cover BOTH the spectral space and the reference value (Y) "
-                                   "range at once (it will include the more 'extreme' samples in either "
-                                   "sense); the remaining, more 'typical' samples become the test set.")
+                    metodo_split_sel_r, metodo_split_r, semilla_reg = _ui_split(False, prop_test_r, "split_reg")
                     optimizar_r = st.checkbox(
                         "Optimize hyperparameters (slower)", key="opt_reg",
                         help="Automatically search for better settings for each model instead of using "
@@ -5588,7 +5602,7 @@ if _abierta(tabs[14]):
                     if _rean_reg:
                         _rr = _run_reg
                         modelos_elegidos_r = list(_rr["modelos"]); cv_folds_r = _rr["cv_folds"]; prop_test_r = _rr["prop_test"]
-                        metodo_split_r = _rr["metodo_split"]; metodo_split_sel_r = _rr["metodo_split_sel"]
+                        metodo_split_r = _rr["metodo_split"]; metodo_split_sel_r = _rr["metodo_split_sel"]; semilla_reg = _rr.get("semilla", 0)
                         optimizar_r = _rr["optimizar"]; metodo_opt_r = _rr["metodo_opt"]; metodo_seleccion_r = _rr["metodo_seleccion"]
                         boruta_max_iter_r, boruta_alpha_r = _rr["boruta_iter"], _rr["boruta_alpha"]
                         ga_poblacion_r, ga_generaciones_r = _rr["ga_pob"], _rr["ga_gen"]
@@ -5600,12 +5614,12 @@ if _abierta(tabs[14]):
                         _idx_split_reg = None
                         if prop_test_r > 0:
                             try:
-                                _idx_split_reg = mu.dividir_train_test(X_reg, y_reg, ids_reg, prop_test_r, False, 0, metodo_split_r)
+                                _idx_split_reg = mu.dividir_train_test(X_reg, y_reg, ids_reg, prop_test_r, False, semilla_reg, metodo_split_r)
                             except Exception:
                                 _idx_split_reg = None
                         st.session_state["reg_run"] = {
                             "completo": False, "firma": firma_modelos(_crop_mask_reg), "modelos": list(modelos_elegidos_r),
-                            "cv_folds": cv_folds_r, "prop_test": prop_test_r, "metodo_split": metodo_split_r,
+                            "cv_folds": cv_folds_r, "prop_test": prop_test_r, "metodo_split": metodo_split_r, "semilla": semilla_reg,
                             "metodo_split_sel": metodo_split_sel_r, "optimizar": optimizar_r, "metodo_opt": metodo_opt_r,
                             "metodo_seleccion": metodo_seleccion_r,
                             "boruta_iter": boruta_max_iter_r if metodo_seleccion_r == "Boruta" else None,
@@ -5686,7 +5700,7 @@ if _abierta(tabs[14]):
                                 st.session_state["reg_aug_desc"] = None
                                 resultados_r[nombre] = mu.entrenar_evaluar_regresion(
                                     modelo, X_sel_r, y_reg, ids=ids_reg,
-                                    cv=cv_folds_r, proporcion_test=prop_test_r, metodo_split=metodo_split_r,
+                                    cv=cv_folds_r, proporcion_test=prop_test_r, metodo_split=metodo_split_r, random_state=semilla_reg,
                                     indices_split=_idx_split_reg,
                                 )
                             except Exception as e:
@@ -5823,6 +5837,10 @@ if _abierta(tabs[14]):
                                 st.markdown("**p-values:**")
                                 st.dataframe(st.session_state["reg_pvalores"].style.format("{:.4f}"), width='stretch')
 
+                    _m_rs_r = st.session_state.get("reg_mascara_variables")
+                    _ui_remuestreo("reg", {n_: mu.clone(r_["modelo_final"]) for n_, r_ in resultados_r.items() if "error" not in r_},
+                                   X_reg[:, _m_rs_r] if _m_rs_r is not None else X_reg, y_reg, False)
+
                     nombre_detalle_r = st.selectbox(
                         "View details for", [n for n in resultados_r if "error" not in resultados_r[n]], key="detalle_reg",
                         help="Choose which of the trained models to inspect below: predicted vs. actual, "
@@ -5923,10 +5941,6 @@ if _abierta(tabs[14]):
                                 st.plotly_chart(fig_lc_r, width='stretch')
                                 st.info(_diagnostico_curva(curva_r))
 
-                        _m_rs_r = st.session_state.get("reg_mascara_variables")
-                        _ui_remuestreo("reg", mu.clone(res["modelo_final"]),
-                                       X_reg[:, _m_rs_r] if _m_rs_r is not None else X_reg,
-                                       y_reg, False)
 
                         with st.expander(f"📐 Williams plot (leverage vs. residual) — {nombre_detalle_r}"):
                             st.caption("A classic applicability-domain diagnostic (common in QSAR/chemometrics): "
@@ -5998,7 +6012,7 @@ if _abierta(tabs[14]):
                                 {"tipo": "clave_valor", "pares": [
                                     ("Cross-validation", f"{res['cv']['cv_folds_usados']}-fold" if cv_folds_r != "LOO"
                                      else f"Leave-One-Out ({res['cv']['cv_folds_usados']} repetitions)"),
-                                    ("Test proportion", f"{int(prop_test_r * 100)}% ({metodo_split_sel_r})"),
+                                    ("Test proportion", f"{int(prop_test_r * 100)}% ({metodo_split_sel_r}, seed {semilla_reg})" if metodo_split_r != "kennard_stone" else f"{int(prop_test_r * 100)}% ({metodo_split_sel_r})"),
                                 ]},
                                 {"tipo": "tabla",
                                  "encabezados": list(df_metricas_reg.columns),
@@ -6812,6 +6826,21 @@ if _abierta(tabs[11]):
                     _cv_s = _s1.slider("Cross-validation folds", 3, 10, 5, key="scr_w_cv",
                                        help="Fewer folds = faster.") if _tarea != "SIMCA" else 5
                     _prop_s = _s2.slider("Independent test set (%)", 15, 40, 25, key="scr_w_prop", help="Share of samples kept apart and never used for training, to give an honest final test.") / 100
+                    _clf_s = _tarea in ("Classification", "SIMCA")
+                    _ms1, _ms2 = st.columns(2)
+                    _opc_split_s = (["Random", "Random (stratified)", "Kennard-Stone (representative)"] if _clf_s
+                                    else ["Random", "Random (stratified by y range)", "SPXY (extended Kennard-Stone)"])
+                    _split_sel_s = _ms1.selectbox("Test set selection", _opc_split_s, index=1, key=f"scr_w_split_{_clf_s}",
+                                                  help="Same three options as in the modelling tabs. In the screening ONE single split is made "
+                                                       "(with the seed on the right) and EVERY pre-treatment, variable selection and algorithm "
+                                                       "is trained and tested on exactly the same samples, so the comparison is fair.")
+                    _seed_s = _ms2.number_input("Random seed", 0, 999999, 0, step=1, key="scr_w_seed",
+                                                disabled=_split_sel_s.startswith(("Kennard", "SPXY")),
+                                                help="Fixes the random split and the cross-validation folds. All candidates in the screening share this "
+                                                     "same seed, so differences between them come from the method, not from a luckier split. "
+                                                     "Kennard-Stone/SPXY are deterministic and ignore it.")
+                    _split_m_s = ("kennard_stone" if _split_sel_s.startswith(("Kennard", "SPXY"))
+                                  else ("random_strat" if "stratified" in _split_sel_s else "random"))
                     _opt_s = _s3.checkbox("Optimize hyperparameters (fastest preset)", value=False, key="scr_w_opt",
                                           disabled=_tarea == "SIMCA",
                                           help="Random search over 8 combinations — the quickest search option, but it still "
@@ -6879,7 +6908,7 @@ if _abierta(tabs[11]):
                     _cfg_s = {"recetas": _recetas_sel,
                               "espectros": ["Full" if e.startswith("Full") else "Cropped" for e in _esp_sel],
                               "seleccion": _sel_sel, "algoritmos": _alg_sel, "varianzas": _var_sel,
-                              "cv": _cv_s, "prop_test": _prop_s, "optimizar": bool(_opt_s) and _tarea != "SIMCA",
+                              "cv": _cv_s, "prop_test": _prop_s, "metodo_split": _split_m_s, "semilla": int(_seed_s), "optimizar": bool(_opt_s) and _tarea != "SIMCA",
                               "boruta_iter": int(_bor_s), "ga_pob": int(_gap_s), "ga_gen": int(_gag_s),
                               "grilla_fn": (lambda _nm, _X, _y, _clf=(_tarea == "Classification"), _pt=_prop_s, _cv=_cv_s, _hm=_hp_modo_s:
                                             _grilla_activa(_nm, _clf, _X, _y, 0.0, int(_cv), _hm))}

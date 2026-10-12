@@ -110,14 +110,38 @@ def render():
     # ---------------- illustrative spectrum
     xmin = min(r[2] for r in filas); xmax = max(r[3] for r in filas)
     pad = 0.04 * (xmax - xmin)
-    x = np.linspace(xmin - pad, xmax + pad, 1600)
+    x = np.linspace(xmin - pad, xmax + pad, 4000)
     y = np.zeros_like(x)
     amp = [0.9, 0.55, 0.75, 0.4, 0.65, 0.5]
-    for k, (_, _, lo, hi) in enumerate(filas):
-        sig = max((hi - lo) / 4.0, (xmax - xmin) / 260.0)
-        y += amp[k % len(amp)] * np.exp(-0.5 * ((x - (lo + hi) / 2) / sig) ** 2)
-    y += 0.02
-    fig = go.Figure(go.Scatter(x=x, y=y, mode="lines", line=dict(color="#1b1b1b", width=1.4), hoverinfo="skip", showlegend=False))
+    rango = xmax - xmin
+    for k, (_, e, lo, hi) in enumerate(filas):
+        c, w = (lo + hi) / 2, hi - lo
+        a0 = amp[k % len(amp)]
+        if tec == "¹H NMR":
+            # sharp Lorentzian lines; a few lines per region so it looks like a real 1H spectrum (singlets / multiplets)
+            gam = max(rango / 2500.0, 1e-6)
+            if w > 1.2 * (rango / 12.0) and w > 1.5:        # very broad exchangeable O-H / N-H
+                y += 0.3 * (gam * 12) ** 2 / ((x - c) ** 2 + (gam * 12) ** 2)
+            else:
+                n = int(np.clip(round(w / max(rango / 120.0, 1e-9)) + 1, 1, 5))
+                pos = np.linspace(lo + 0.12 * w, hi - 0.12 * w, n) if n > 1 else [c]
+                pesos = np.array([1.0, 0.55, 0.8, 0.45, 0.6][:n]) * a0
+                for q, h in zip(pos, pesos):
+                    y += h * gam ** 2 / ((x - q) ** 2 + gam ** 2)
+        elif tec == "Raman":
+            sig = max(w / 6.0, rango / 450.0)
+            y += a0 * np.exp(-0.5 * ((x - c) / sig) ** 2)
+        elif tec == "FT-MIR":
+            sig = max(w / 3.5, rango / 260.0)
+            y += a0 * np.exp(-0.5 * ((x - c) / sig) ** 2)
+        else:   # NIR and UV-Vis: broad, strongly overlapped bands
+            sig = max(w / 1.7, rango / 60.0)
+            fuerte = 1.0 if ("water" in e["grupo"].lower() or "aromatic" in e["grupo"].lower()) else 0.45 * a0 / 0.9
+            y += fuerte * np.exp(-0.5 * ((x - c) / sig) ** 2)
+    if tec in ("NIR", "UV-Vis"):
+        y += 0.08 * (x - x.min()) / max(np.ptp(x), 1e-9)       # gently sloping baseline
+    y += 0.01
+    fig = go.Figure(go.Scatter(x=x, y=y, mode="lines", line=dict(color="#1b1b1b", width=1.1 if tec == "¹H NMR" else 1.5), hoverinfo="skip", showlegend=False))
     centros = [(r[2] + r[3]) / 2 for r in filas]
     textos = [asg.etiqueta_corta(T(r[1]["grupo"]), 22) for r in filas]
     lv = _niveles(centros, textos, xmin, xmax)

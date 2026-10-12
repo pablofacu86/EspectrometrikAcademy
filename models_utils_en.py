@@ -725,7 +725,9 @@ def dividir_train_test(X, y, ids, proporcion_test=0.2, es_clasificacion=True,
     """
     Returns (idx_train, idx_test).
     metodo_split:
-      - "random": stratified random split (default).
+      - "random": plain random split (no stratification).
+      - "random_strat": random split stratified by class (classification) or by
+        quantile bins of y (regression).
       - "kennard_stone": for classification, plain Kennard-Stone (X-distance
         only) is run SEPARATELY within each class, so every class
         contributes its own proportional share to both train and test
@@ -764,8 +766,10 @@ def dividir_train_test(X, y, ids, proporcion_test=0.2, es_clasificacion=True,
         idx_test = np.array([i for i in idx if i not in set(idx_train.tolist())])
         return idx_train, idx_test
 
-    estratos = y if es_clasificacion else None
-    if (not es_clasificacion) and metodo_split == "strat_y":
+    # "random" = plain random split; "random_strat" (or legacy "strat_y") = stratified random split.
+    estrat = metodo_split in ("random_strat", "strat_y")
+    estratos = y if (es_clasificacion and estrat) else None
+    if (not es_clasificacion) and estrat:
         # Regression: stratify by QUANTILE BINS of the reference value, so the train and test sets
         # both cover the whole range of y (low, middle and high values) in the same proportions.
         yv = np.asarray(y, dtype=float)
@@ -1280,7 +1284,7 @@ def interpretar_comparacion_modelos(pvalores, puntajes, alpha=0.05):
     return {"hay_diferencias": True, "mensajes": hallazgos}
 
 
-def remuestreo_train_test(modelo, X, y, es_clasificacion, n_rep=20, prop_test=0.25, random_state=0):
+def remuestreo_train_test(modelo, X, y, es_clasificacion, n_rep=20, prop_test=0.25, random_state=0, metodo="holdout"):
     """
     Repeats a random train/test split `n_rep` times (stratified for classification),
     refits a clone of `modelo` each time and records the test metrics. Returns a
@@ -1291,12 +1295,30 @@ def remuestreo_train_test(modelo, X, y, es_clasificacion, n_rep=20, prop_test=0.
     from sklearn.metrics import (balanced_accuracy_score, accuracy_score, f1_score,
                                  r2_score, mean_squared_error)
     X = np.asarray(X); y = np.asarray(y)
-    if es_clasificacion:
-        ss = StratifiedShuffleSplit(n_splits=n_rep, test_size=prop_test, random_state=random_state)
+    if metodo == "bootstrap":
+        # Bootstrap: train on N samples drawn WITH replacement; test on the out-of-bag
+        # samples (those never drawn in that repetition, ~37 %).
+        rng = np.random.RandomState(random_state)
+        n = len(y)
+        def _gen():
+            hechos = 0; intentos = 0
+            while hechos < n_rep and intentos < n_rep * 20:
+                intentos += 1
+                tr = rng.randint(0, n, n)
+                te = np.setdiff1d(np.arange(n), tr)
+                if len(te) < 2 or (es_clasificacion and len(np.unique(y[tr])) < len(np.unique(y))):
+                    continue
+                hechos += 1
+                yield tr, te
+        pares = _gen()
     else:
-        ss = ShuffleSplit(n_splits=n_rep, test_size=prop_test, random_state=random_state)
+        if es_clasificacion:
+            ss = StratifiedShuffleSplit(n_splits=n_rep, test_size=prop_test, random_state=random_state)
+        else:
+            ss = ShuffleSplit(n_splits=n_rep, test_size=prop_test, random_state=random_state)
+        pares = ss.split(X, y)
     filas = []
-    for i, (tr, te) in enumerate(ss.split(X, y)):
+    for i, (tr, te) in enumerate(pares):
         m = clone(modelo)
         m.fit(X[tr], y[tr])
         pred = m.predict(X[te])
