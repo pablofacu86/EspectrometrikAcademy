@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Guidance layer of the Espectrometrika Academy edition.
+Guidance layer of the Espectrometrika.edu edition.
 
 * what_next(tab)       -> a "🧭 What's next?" popover with recommendations that depend on what the
                           user has done so far and on the actual results on screen.

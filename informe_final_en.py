@@ -812,4 +812,4 @@ def construir_informe(ss, opciones, firma_actual):
         bloques.append({"tipo": "titulo", "texto": f"{i + 1}. {t}"})
         bloques += b
     return (opciones.get("titulo") or "Chemometric analysis report",
-            "Generated with Espectrometrika Academy", bloques, indice)
+            "Generated with Espectrometrika.edu", bloques, indice)

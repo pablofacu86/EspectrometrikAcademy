@@ -206,6 +206,23 @@ MIR = [
 ]
 
 # --- NIR (nm): overtones and combination bands ---------------------------------------------------
+# --- UV-Vis chromophores -------------------------------------------------------------------------
+_s("enone", [("R", "R", -1, .6), ("Cb", "C", 0, 0), ("Ca", "C", 1, .6), ("C", "C", 2, 0), ("O", "O", 2, -1.1),
+             ("Rp", "R'", 3, .6)],
+   [("R", "Cb"), ("Cb", "Ca", 2), ("Ca", "C"), ("C", "O", 2), ("C", "Rp")])
+_s("diene", [("R", "R", 0, .6), ("C1", "C", 1, 0), ("C2", "C", 2, .6), ("C3", "C", 3, 0), ("C4", "C", 4, .6),
+             ("Rp", "R'", 5, 0)],
+   [("R", "C1"), ("C1", "C2", 2), ("C2", "C3"), ("C3", "C4", 2), ("C4", "Rp")])
+_fl = [("o", "O⁺", np.cos(-np.pi / 2), np.sin(-np.pi / 2))] + [
+    ("f%d" % i, "C", np.cos(np.pi / 3 * i - np.pi / 2), np.sin(np.pi / 3 * i - np.pi / 2)) for i in range(1, 6)]
+_fl += [("Ar", "Ar", 1.9 * np.cos(np.pi / 3 * 1 - np.pi / 2) + 1.3, 1.9 * np.sin(np.pi / 3 * 1 - np.pi / 2))]
+_s("flavylium", _fl, [("o", "f1", 2), ("f1", "f2"), ("f2", "f3", 2), ("f3", "f4"), ("f4", "f5", 2), ("f5", "o"),
+                      ("f1", "Ar")])
+_s("porphyrin", [("Mg", "Mg", 0, 0), ("N1", "N", -1.4, 0), ("N2", "N", 1.4, 0), ("N3", "N", 0, -1.4), ("N4", "N", 0, 1.4),
+                 ("C1", "C", -1.2, -1.2), ("C2", "C", 1.2, -1.2), ("C3", "C", 1.2, 1.2), ("C4", "C", -1.2, 1.2)],
+   [("Mg", "N1"), ("Mg", "N2"), ("Mg", "N3"), ("Mg", "N4"), ("N1", "C1", 2), ("C1", "N3"), ("N3", "C2", 2),
+    ("C2", "N2"), ("N2", "C3", 2), ("C3", "N4"), ("N4", "C4", 2), ("C4", "N1")])
+
 NIR = [
     _e(1140, 1230, "Methyl / methylene / aromatic C–H", "C–H 2nd overtone", "methylene", ["C", "H1", "H2"], [("C", "H1"), ("C", "H2")]),
     _e(1350, 1400, "Alcohols / free O–H, C–H combination", "O–H 1st overtone / C–H combination", "alcohol", ["O", "H"], [("O", "H")]),
@@ -274,12 +291,31 @@ RMN = [
     _e(10.0, 13.0, "Carboxylic acid O–H / phenolic O–H (exchangeable, solvent-dependent)", "¹H of COOH / OH", "acid", ["H"], [("O", "H")]),
 ]
 
+# --- UV-Vis (nm) ---------------------------------------------------------------------------------
+_ring = ["c0", "c1", "c2", "c3", "c4", "c5"]
+_ringb = [("c%d" % i, "c%d" % ((i + 1) % 6)) for i in range(6)]
+UVVIS = [
+    _e(160, 200, "Isolated C=C and C≡C (alkenes, alkynes)", "π→π* transition", "alkene_cis", ["C1", "C2"], [("C1", "C2")]),
+    _e(180, 240, "Heteroatom lone pairs: amines, alcohols, ethers, thiols", "n→σ* transition", "amine", ["N"], []),
+    _e(200, 225, "Peptide bond (proteins, ≈205–220 nm); carboxylic acids / esters / amides", "n→π* / π→π* transition", "peptide", ["C", "Od", "N"], [("C", "Od"), ("C", "N")]),
+    _e(215, 250, "Conjugated dienes (≈217 nm and above); enone π→π*", "π→π* transition", "diene", ["C1", "C2", "C3", "C4"], [("C1", "C2"), ("C2", "C3"), ("C3", "C4")]),
+    _e(250, 262, "Aromatic ring (benzene B band ≈254 nm); nucleic-acid bases (≈260 nm)", "π→π* transition", "aromatic", _ring, _ringb),
+    _e(262, 290, "Tyr / Trp / phenols and anilines (≈270–280 nm; proteins at 280 nm)", "π→π* transition", "phenol", ["R", "O"], [("R", "O")]),
+    _e(270, 300, "Ketones and aldehydes (weak band)", "n→π* transition of C=O", "ketone", ["C", "O"], [("C", "O")]),
+    _e(310, 335, "α,β-Unsaturated carbonyls / enones (weak band)", "n→π* transition of C=O", "enone", ["C", "O"], [("C", "O")]),
+    _e(405, 450, "Chlorophylls (Soret band ≈430 nm)", "π→π* transition of the porphyrin ring", "porphyrin", ["N1", "N2", "N3", "N4"], []),
+    _e(420, 500, "Carotenoids and other extended polyenes (≈430–490 nm; orange / yellow colour)", "π→π* transition of the conjugated chain", "polyene", ["C1", "C2", "C3", "C4", "C5", "C6"], [("C1", "C2"), ("C2", "C3"), ("C3", "C4"), ("C4", "C5"), ("C5", "C6")]),
+    _e(500, 560, "Anthocyanins (flavylium cation, ≈520 nm, pH-dependent); red / purple colour", "π→π* transition", "flavylium", ["o", "f1", "f2", "f3", "f4", "f5"], [("o", "f1"), ("f1", "f2"), ("f2", "f3"), ("f3", "f4"), ("f4", "f5"), ("f5", "o")]),
+    _e(640, 680, "Chlorophyll a (red band ≈662 nm; green colour)", "π→π* transition of the porphyrin ring", "porphyrin", ["N1", "N2", "N3", "N4"], []),
+]
+
 TECNICAS = {
     "FT-MIR (cm⁻¹)": ("mir", MIR, "cm⁻¹"),
     "NIR (nm)": ("nir_nm", NIR, "nm"),
     "NIR (cm⁻¹)": ("nir_cm", NIR, "cm⁻¹"),
     "Raman (cm⁻¹)": ("raman", RAMAN, "cm⁻¹"),
     "¹H NMR (ppm)": ("rmn", RMN, "ppm"),
+    "UV-Vis (nm)": ("uv", UVVIS, "nm"),
 }
 AVISO = ("Indicative values only: typical ranges for each group. Real positions shift with the matrix, solvent, pH, "
          "temperature, hydrogen bonding and neighbouring groups — always confirm against the literature or a reference spectrum.")

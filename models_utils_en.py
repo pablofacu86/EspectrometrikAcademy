@@ -439,7 +439,7 @@ def optimizar_hiperparametros(modelo, grilla, X, y, es_clasificacion, cv=5,
 
     if metodo == "grid":
         buscador = GridSearchCV(modelo, grilla, scoring=scoring, cv=splitter, n_jobs=N_JOBS)
-        descripcion = "Grid search (exhaustive, legacy option)"
+        descripcion = "Grid search (exhaustive: every combination, full cross-validation)"
 
     elif metodo == "random":
         buscador = RandomizedSearchCV(
@@ -1278,3 +1278,35 @@ def interpretar_comparacion_modelos(pvalores, puntajes, alpha=0.05):
                          "them roughly equivalent unless you have another reason to prefer one."],
         }
     return {"hay_diferencias": True, "mensajes": hallazgos}
+
+
+def remuestreo_train_test(modelo, X, y, es_clasificacion, n_rep=20, prop_test=0.25, random_state=0):
+    """
+    Repeats a random train/test split `n_rep` times (stratified for classification),
+    refits a clone of `modelo` each time and records the test metrics. Returns a
+    DataFrame with one row per repetition, so the mean and the spread (SD) of every
+    metric show how much the result depends on the particular split.
+    """
+    from sklearn.model_selection import StratifiedShuffleSplit, ShuffleSplit
+    from sklearn.metrics import (balanced_accuracy_score, accuracy_score, f1_score,
+                                 r2_score, mean_squared_error)
+    X = np.asarray(X); y = np.asarray(y)
+    if es_clasificacion:
+        ss = StratifiedShuffleSplit(n_splits=n_rep, test_size=prop_test, random_state=random_state)
+    else:
+        ss = ShuffleSplit(n_splits=n_rep, test_size=prop_test, random_state=random_state)
+    filas = []
+    for i, (tr, te) in enumerate(ss.split(X, y)):
+        m = clone(modelo)
+        m.fit(X[tr], y[tr])
+        pred = m.predict(X[te])
+        if es_clasificacion:
+            filas.append({"split": i + 1,
+                          "Balanced accuracy": balanced_accuracy_score(y[te], pred),
+                          "Accuracy": accuracy_score(y[te], pred),
+                          "F1 (macro)": f1_score(y[te], pred, average="macro", zero_division=0)})
+        else:
+            filas.append({"split": i + 1,
+                          "R²": r2_score(y[te], pred),
+                          "RMSEP": float(np.sqrt(mean_squared_error(y[te], pred)))})
+    return pd.DataFrame(filas)

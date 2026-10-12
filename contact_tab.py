@@ -25,7 +25,7 @@ def render(enviar_fn, email):
             padding:26px 30px; margin-bottom:18px;">
   <div style="font-size:1.55rem; font-weight:700; margin-bottom:6px;">Let's talk chemometrics</div>
   <div style="font-size:1.02rem; line-height:1.55; opacity:.95; max-width:820px;">
-    Espectrometrika Academy is an open educational initiative. If something in your analysis is unclear, if you would like a second
+    Espectrometrika.edu is an open educational initiative. If something in your analysis is unclear, if you would like a second
     opinion on a model, or if you would like to arrange a meeting to discuss your data, you are very welcome to write.
     Every message is read personally.
   </div>
@@ -52,9 +52,9 @@ def render(enviar_fn, email):
         with st.container(border=True):
             st.markdown("#### Contact details")
             st.markdown("**Pablo Facundo Sánchez**")
-            asunto = urllib.parse.quote(T("Espectrometrika Academy — query"))
+            asunto = urllib.parse.quote(T("Espectrometrika.edu — query"))
             cuerpo = urllib.parse.quote(T(
-                "Dear Pablo,\n\nI am writing from Espectrometrika Academy regarding:\n\n"
+                "Dear Pablo,\n\nI am writing from Espectrometrika.edu regarding:\n\n"
                 "[Topic: chemometrics question / meeting request / data analysis help]\n\n"
                 "Technique and sample type:\nNumber of samples:\nWhat I would like to achieve:\n\nKind regards,\n"))
             st.link_button(f"✉️ Write an email", f"mailto:{email}?subject={asunto}&body={cuerpo}",
@@ -98,5 +98,5 @@ def render(enviar_fn, email):
                     else:
                         st.error(detalle + f" You can also write directly to {email}.")
     st.markdown("<div style='font-size:1.05rem; color:#3D4A52; line-height:1.55; margin-top:6px;'>"
-                + T("Espectrometrika Academy is free for teaching and self-study. Suggestions for new tools, tutorials or datasets "
+                + T("Espectrometrika.edu is free for teaching and self-study. Suggestions for new tools, tutorials or datasets "
                     "are always welcome.") + "</div>", unsafe_allow_html=True)
