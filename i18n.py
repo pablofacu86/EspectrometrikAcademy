@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Language switch (English / Castellano) for Espectrometrika.edu.
+Language switch (English / Castellano) for Metrika.edu.
 
 Design goals (the app may be used by many students at once):
   * The language is stored PER USER SESSION (st.session_state["_lang"]); nothing global is mutated per user.

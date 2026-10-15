@@ -1,5 +1,5 @@
 """
-app_en.py — Espectrometrika
+app_academy.py — Metrika.edu
 Streamlit application: spectra/chromatogram loading, preprocessing, PCA,
 outlier detection, cluster analysis, classification, regression and
 prediction on new samples — with a point-and-click interface (no coding
@@ -58,25 +58,25 @@ except ImportError:
     inf = None
 
 st.set_page_config(
-    page_title="Espectrometrika.edu",
+    page_title="Metrika.edu",
     page_icon=os.path.join(os.path.dirname(__file__), "assets", "favicon.png"),
     layout="wide",
 )
 
 # Copyright footer (fixed at the bottom of every page, also on the Home screen)
-COPYRIGHT_TEXTO = "Espectrometrika.edu · All rights reserved"
+COPYRIGHT_TEXTO = "Metrika.edu · All rights reserved"
 CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "espectrometrika@gmail.com")   # shown in the Contact tab (mailto link)
 EDICION = "Academy"
 i18n.install()                                  # English / Castellano switch (per user session)
 _top_cols = st.columns([2.6, 4.2, 2.4])
+with _top_cols[2]:
+    i18n.language_switch()                      # first, so the rest of the header is already in the chosen language
 with _top_cols[1]:
     _niv = st.radio("Level", ["ini", "exp"], index=1, horizontal=True, key="nivel_sel", label_visibility="collapsed",
                     format_func=lambda k: T("🌱 First steps") if k == "ini" else T("🔬 I have experience"),
                     help=T("First steps keeps the essential workflow (load data, preprocessing, PCA, outliers, dendrogram, screening, classification, regression, prediction, report). The advanced tools (PC finder, non-linear finder, consensus, hyperparameters, SIMCA, other tools, resampling, variable selection and hyperparameter optimization) stay visible but greyed out. 'I have experience' unlocks everything."))
     st.session_state["_nivel"] = _niv
     st.caption(T("🌱 First steps: essentials only · 🔬 Experience: everything unlocked"))
-with _top_cols[2]:
-    i18n.language_switch()
 _BASICO = (st.session_state.get("_nivel", "exp") == "ini")
 import streamlit.components.v1 as _components
 _components.html("""<script>
@@ -375,7 +375,7 @@ def enviar_mensaje_contacto(mensaje, nombre_remitente, email_remitente):
         cuerpo += f"\n\n— Sent by: {nombre_remitente.strip()}"
     if email_remitente.strip():
         cuerpo += f" ({email_remitente.strip()})"
-    cuerpo += f"\n— Sent from Espectrometrika.edu on {datetime.datetime.now():%Y-%m-%d %H:%M}"
+    cuerpo += f"\n— Sent from Metrika.edu on {datetime.datetime.now():%Y-%m-%d %H:%M}"
 
     # --- Option 1: Formspree (no email credentials needed) ---
     # Checked in two possible places, since different hosting platforms expose
@@ -406,7 +406,7 @@ def enviar_mensaje_contacto(mensaje, nombre_remitente, email_remitente):
             respuesta = requests.post(
                 endpoint,
                 data={"message": cuerpo, "name": nombre_remitente.strip(),
-                      "_replyto": email_remitente.strip() or "no-reply@espectrometrika.app"},
+                      "_replyto": email_remitente.strip() or "no-reply@metrika.app"},
                 headers={"Accept": "application/json"},
                 timeout=15,
             )
@@ -433,7 +433,7 @@ def enviar_mensaje_contacto(mensaje, nombre_remitente, email_remitente):
                             "configuration). Ask the app maintainer to set it up.")
 
     msg = EmailMessage()
-    msg["Subject"] = "Espectrometrika.edu — New feedback message"
+    msg["Subject"] = "Metrika.edu — New feedback message"
     msg["From"] = smtp_cfg["user"]
     msg["To"] = CONTACTO_DESTINATARIO
     if email_remitente.strip():
@@ -516,7 +516,7 @@ st.markdown("""
     button[data-testid="stTabsScrollRight"] svg, button[data-testid="stTabsScrollLeft"] svg {
         width: 26px !important; height: 26px !important; fill: #fff !important; color: #fff !important;
     }
-    /* ---- left panel: Espectrometrika blue with white text ---- */
+    /* ---- left panel: Metrika blue with white text ---- */
     section[data-testid="stSidebar"] > div {background: linear-gradient(180deg, #0B3D54 0%, #0F5470 100%);}
     section[data-testid="stSidebar"] {border-right: none;}
     section[data-testid="stSidebar"] h1, section[data-testid="stSidebar"] h2, section[data-testid="stSidebar"] h3,
@@ -1543,7 +1543,7 @@ def _envolver_widget(original, es_metodo):
 
 
 def _instalar_persistencia_widgets():
-    if getattr(st, "_espectrometrika_patch", False):
+    if getattr(st, "_metrika_patch", False):
         return                       # already installed in this process
     from streamlit.delta_generator import DeltaGenerator
     for nombre in _WIDGETS_CON_VALOR:
@@ -1551,7 +1551,7 @@ def _instalar_persistencia_widgets():
             setattr(DeltaGenerator, nombre, _envolver_widget(getattr(DeltaGenerator, nombre), True))
         if hasattr(st, nombre):
             setattr(st, nombre, _envolver_widget(getattr(st, nombre), False))
-    st._espectrometrika_patch = True
+    st._metrika_patch = True
 
 
 _instalar_persistencia_widgets()
@@ -1846,7 +1846,7 @@ class _ArchivoEjemplo:
 
 
 with st.sidebar:
-    _logo_b64 = _img_b64("logo_espectrometrika_edu.png", max_h=190, paleta=True)
+    _logo_b64 = _img_b64("logo_metrika_edu.png", max_h=190, paleta=True)
     st.markdown(f"""
     <div class="sb-logo"><img src="{_logo_b64}" style="height:50px; display:block;"></div>
     <div class="sb-sep"></div>
@@ -2286,7 +2286,7 @@ if hay_datos() and (st.session_state.get("X_pret") is None
                     or st.session_state.X_pret.shape[0] != st.session_state.X.shape[0]):
     reiniciar_pretratamiento()
 
-_logo_top_b64 = _img_b64("logo_espectrometrika_edu.png", max_h=190, paleta=True)
+_logo_top_b64 = _img_b64("logo_metrika_edu.png", max_h=190, paleta=True)
 with _top_cols[0]:
     st.markdown(f"""
 <div style="margin-bottom:10px; margin-top:4px;">
@@ -2410,14 +2410,14 @@ def _abierta(tab):
 # -----------------------------------------------------------------------
 if _abierta(tabs[0]):
     with tabs[0]:
-        _logo_hero_b64 = _img_b64("logo_espectrometrika_edu.png", max_h=240, paleta=True)
+        _logo_hero_b64 = _img_b64("logo_metrika_edu.png", max_h=240, paleta=True)
         st.markdown(f"""
     <div style="margin-bottom:6px;">
         <img src="{_logo_hero_b64}" style="height:120px; display:block;">
     </div>
     <p style="font-family:'Nunito Sans',sans-serif; font-size:1.08rem; color:#4A5A63; max-width:860px;
               margin-top:6px; margin-bottom:18px; line-height:1.55;">
-        <b>Espectrometrika.edu</b> is the edition of the app designed to <b>start in chemometrics</b>: make your first exploratory
+        <b>Metrika.edu</b> is the edition of the app designed to <b>start in chemometrics</b>: make your first exploratory
         analyses, train and validate your first models, understand every metric. Models can be <b>saved and reused
         another day</b> to predict new samples, with full traceability.
     </p>
@@ -2447,9 +2447,9 @@ if _abierta(tabs[0]):
                 "limitations: a model is only as good as the data and the validation behind it, and it must be checked and "
                 "maintained over time. That is the idea of this app: to learn to use them well, with a critical mind.")
 
-        with st.expander("🎓 What is Espectrometrika.edu?", expanded=False):
+        with st.expander("🎓 What is Metrika.edu?", expanded=False):
             st.markdown(
-                "**Espectrometrika.edu is a tool to bring chemometrics closer to analytical chemists, students, researchers "
+                "**Metrika.edu is a tool to bring chemometrics closer to analytical chemists, students, researchers "
                 "and anyone who works with instrumental data.** It is designed above all for **learning**: you load your own data "
                 "(spectra or tables) and go through the whole workflow — exploring, preprocessing, comparing models, validating, "
                 "predicting — seeing what each step does and why.")
