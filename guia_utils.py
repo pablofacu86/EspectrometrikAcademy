@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Guidance layer of the Metrika.edu edition.
+Guidance layer of Metrika.edu.
 
 * what_next(tab)       -> a "🧭 What's next?" popover with recommendations that depend on what the
                           user has done so far and on the actual results on screen.

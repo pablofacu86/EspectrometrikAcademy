@@ -1365,7 +1365,7 @@ def _extras_tabular():
 
 
 def _ui_aumento(prefijo, es_clf):
-    """Augmentation is not part of this edition."""
+    """Data augmentation is not included."""
     return None
 
 
@@ -1851,11 +1851,11 @@ with st.sidebar:
     <div class="sb-logo"><img src="{_logo_b64}" style="height:50px; display:block;"></div>
     <div class="sb-sep"></div>
     """, unsafe_allow_html=True)
-    st.caption("The learning edition — explore, model, predict and understand every step")
+    st.caption("Learn chemometrics — explore, model, predict and understand every step")
     gu.journey(compact=True)
 
     with st.expander("📖 Theoretical guide (PDF)"):
-        st.caption("A companion reference for this edition: a suggested learning path, preprocessing per technique, PCA, "
+        st.caption("A companion reference for this app: a suggested learning path, preprocessing per technique, PCA, "
                    "outliers, clustering, SIMCA, variable selection, the classification/regression algorithms, validation, "
                    "every metric with its formula and how to read each diagnostic plot, plus a metric cheat sheet and "
                    "where to find public datasets. Read it alongside your analysis.")
@@ -2417,7 +2417,7 @@ if _abierta(tabs[0]):
     </div>
     <p style="font-family:'Nunito Sans',sans-serif; font-size:1.08rem; color:#4A5A63; max-width:860px;
               margin-top:6px; margin-bottom:18px; line-height:1.55;">
-        <b>Metrika.edu</b> is the edition of the app designed to <b>start in chemometrics</b>: make your first exploratory
+        <b>Metrika.edu</b> is an app designed to <b>start in chemometrics</b>: make your first exploratory
         analyses, train and validate your first models, understand every metric. Models can be <b>saved and reused
         another day</b> to predict new samples, with full traceability.
     </p>
