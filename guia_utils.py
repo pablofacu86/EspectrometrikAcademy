@@ -113,6 +113,10 @@ INTERPRETAR = {
              "Each dot is one repetition; the box holds the middle 50 % of them and the line is the median.",
              "Compare boxes between models: separated boxes = a real difference; overlapping boxes = a difference that could be luck.",
              "Outlier dots far from the box show that some partitions were unlucky (e.g. a whole class missing from the test set)."),
+            ('Training vs test (the two boxes of each model)',
+             'Blue = test: the samples left out of each fit. Amber = training: the samples used to fit the model.',
+             'The test box is the honest estimate. The training box shows how well the model reproduces the data it has already seen.',
+             'Training clearly better than test (a big gap) means overfitting: simplify the model, use fewer variables or more regularization. Similar boxes mean the model generalizes.'),
             ("Resampling mean vs. the single test-set result",
              "Your first test result comes from one partition only.",
              "If the single result is far from the resampling mean (more than about 1 SD) it was a lucky or unlucky split — report the resampling mean ± SD instead.",
@@ -777,8 +781,8 @@ def _recs_para(tab, ss, d):
 
     if tab == "prep":
         if d["pasos"] == 0 and not d["tab"]:
-            R.append(_rec("🧪", "Nothing applied yet", "Pick the signal type (NIR/MIR, Raman, chromatogram, NMR) and add steps. "
-                          "Typical: NIR → SNV or derivative; Raman → baseline + normalization; chromatograms → baseline + alignment; "
+            R.append(_rec("🧪", "Nothing applied yet", "Pick the signal type (NIR/MIR, UV-Vis, Raman, chromatogram, NMR) and add steps. "
+                          "Typical: NIR → SNV or derivative; UV-Vis → offset correction + derivative; Raman → baseline + normalization; chromatograms → baseline + alignment; "
                           "NMR → PQN.", None))
         else:
             R.append(_rec("✅", "Preprocessing defined", "Click **Apply** to send it to the rest of the app.", None))
@@ -1009,7 +1013,7 @@ def what_next_remuestreo(res, es_clf, boot, key=None, etiqueta="🧭 What's next
     """Popover with suggestions based on the resampling results (dict model -> DataFrame of repetitions)."""
     if not res:
         return
-    metrica = "Balanced accuracy" if es_clf else "R²"
+    metrica = "Balanced accuracy (test)" if es_clf else "R² (test)"
     medias, sds = {}, {}
     for nm, df in res.items():
         if metrica in df.columns:
@@ -1024,6 +1028,10 @@ def what_next_remuestreo(res, es_clf, boot, key=None, etiqueta="🧭 What's next
             a, b2 = ord_[0], ord_[1]
             if medias[a] - medias[b2] < max(sds[a], sds[b2]):
                 recs.append(("⚖️", "No clear winner", f"{a} and {b2} differ by less than their SD: you cannot say one is really better. Prefer the simpler/more interpretable one."))
+        _mtr = metrica.replace("(test)", "(train)")
+        _dif = [float(df[_mtr].mean()) - float(df[metrica].mean()) for df in res.values() if _mtr in df.columns]
+        if _dif and max(_dif) > 0.10:
+            recs.append(("🔍", "Train much better than test", "At least one model fits the training samples far better than the left-out ones (overfitting). Simplify it, use fewer variables or stronger regularization, and trust the test figures."))
         if sd_max > 0.05:
             recs.append(("🎲", "High variability", "The result depends strongly on the partition. Get more samples, use a simpler model or fewer variables, and always report mean ± SD rather than one split."))
         else:

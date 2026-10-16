@@ -742,6 +742,25 @@ def _extremos_a_train(y, idx_train, idx_test):
     return tr, te
 
 
+def _clases_en_train(y, idx_train, idx_test):
+    """Classification: every class must have at least one sample in the TRAINING set (a plain random split could
+    leave a small class entirely in test). If one is missing, a sample of that class is swapped with a training
+    sample of the largest class."""
+    y = np.asarray(y)
+    tr = np.asarray(idx_train).copy(); te = np.asarray(idx_test).copy()
+    for c in np.unique(y):
+        if np.any(y[tr] == c):
+            continue
+        pos = np.where(y[te] == c)[0]
+        if len(pos) == 0:
+            continue
+        clases, cuentas = np.unique(y[tr], return_counts=True)
+        mayor = clases[np.argmax(cuentas)]
+        k = np.where(y[tr] == mayor)[0][0]
+        te[pos[0]], tr[k] = tr[k], te[pos[0]]
+    return tr, te
+
+
 def dividir_train_test(X, y, ids, proporcion_test=0.2, es_clasificacion=True,
                         random_state=0, metodo_split="random"):
     """
@@ -811,6 +830,8 @@ def dividir_train_test(X, y, ids, proporcion_test=0.2, es_clasificacion=True,
     )
     if not es_clasificacion:
         idx_train, idx_test = _extremos_a_train(y, idx_train, idx_test)
+    else:
+        idx_train, idx_test = _clases_en_train(y, idx_train, idx_test)
     return idx_train, idx_test
 
 
@@ -1352,14 +1373,19 @@ def remuestreo_train_test(modelo, X, y, es_clasificacion, n_rep=20, prop_test=0.
     for i, (tr, te) in enumerate(pares):
         m = clone(modelo)
         m.fit(X[tr], y[tr])
-        pred = m.predict(X[te])
+        pred = m.predict(X[te]); pred_tr = m.predict(X[tr])
         if es_clasificacion:
             filas.append({"split": i + 1,
-                          "Balanced accuracy": balanced_accuracy_score(y[te], pred),
-                          "Accuracy": accuracy_score(y[te], pred),
-                          "F1 (macro)": f1_score(y[te], pred, average="macro", zero_division=0)})
+                          "Balanced accuracy (test)": balanced_accuracy_score(y[te], pred),
+                          "Accuracy (test)": accuracy_score(y[te], pred),
+                          "F1 (macro) (test)": f1_score(y[te], pred, average="macro", zero_division=0),
+                          "Balanced accuracy (train)": balanced_accuracy_score(y[tr], pred_tr),
+                          "Accuracy (train)": accuracy_score(y[tr], pred_tr),
+                          "F1 (macro) (train)": f1_score(y[tr], pred_tr, average="macro", zero_division=0)})
         else:
             filas.append({"split": i + 1,
-                          "R²": r2_score(y[te], pred),
-                          "RMSEP": float(np.sqrt(mean_squared_error(y[te], pred)))})
+                          "R² (test)": r2_score(y[te], pred),
+                          "RMSEP (test)": float(np.sqrt(mean_squared_error(y[te], pred))),
+                          "R² (train)": r2_score(y[tr], pred_tr),
+                          "RMSE (train)": float(np.sqrt(mean_squared_error(y[tr], pred_tr)))})
     return pd.DataFrame(filas)

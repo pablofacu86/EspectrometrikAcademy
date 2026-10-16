@@ -325,6 +325,8 @@ def sugerir_tecnica(eje, tipo_senal=None):
     """Best guess of the technique from the axis range (the user can override it)."""
     eje = np.asarray(eje, dtype=float)
     lo, hi = float(np.nanmin(eje)), float(np.nanmax(eje))
+    if tipo_senal == "UV-Vis":
+        return "UV-Vis (nm)"
     if tipo_senal == "NMR" or (hi <= 16 and lo >= -3):
         return "¹H NMR (ppm)"
     if lo >= 600 and hi <= 2700 and (hi - lo) > 150 and hi < 3000:

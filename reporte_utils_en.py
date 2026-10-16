@@ -740,18 +740,32 @@ def fig_curva_aprendizaje(curva, nombre_modelo=""):
 
 
 def fig_remuestreo(res, metrica, titulo=""):
-    """Box plot (with the individual repetitions) of one metric for every model."""
+    """Box plot (with the individual repetitions) of one metric for every model: test and, when available, training."""
     nombres = list(res.keys())
-    datos = [res[n][metrica].values for n in nombres]
-    fig, ax = plt.subplots(figsize=(max(5.0, 1.3 * len(nombres) + 2), 4.2))
-    bp = ax.boxplot(datos, tick_labels=nombres, patch_artist=True, showfliers=False)
-    for patch in bp["boxes"]:
-        patch.set_facecolor("#D6E6F5"); patch.set_edgecolor("#185FA5")
+    metrica_tr = metrica.replace("(test)", "(train)") if metrica.endswith("(test)") else None
+    series = [("Test", metrica, "#D6E6F5", "#185FA5")]
+    if metrica_tr and all(metrica_tr in res[n].columns for n in nombres):
+        series.append(("Training", metrica_tr, "#FBE3B8", "#C98A1B"))
+    fig, ax = plt.subplots(figsize=(max(5.0, 1.6 * len(nombres) + 2), 4.2))
+    k = len(series); ancho = 0.8 / k
     rng = np.random.RandomState(0)
-    for i, d in enumerate(datos, start=1):
-        ax.scatter(i + rng.uniform(-0.15, 0.15, len(d)), d, s=8, color="#185FA5", alpha=0.6, zorder=3)
-    ax.set_ylabel(metrica)
-    ax.set_title(titulo or f"{metrica} over the repetitions", fontsize=11)
+    for j, (etq, col, fc, ec) in enumerate(series):
+        pos = [i + 1 + (j - (k - 1) / 2) * ancho for i in range(len(nombres))]
+        datos = [res[n][col].values for n in nombres]
+        bp = ax.boxplot(datos, positions=pos, widths=ancho * 0.85, patch_artist=True, showfliers=False)
+        for patch in bp["boxes"]:
+            patch.set_facecolor(fc); patch.set_edgecolor(ec)
+        for med in bp["medians"]:
+            med.set_color(ec)
+        for p_, d in zip(pos, datos):
+            ax.scatter(p_ + rng.uniform(-ancho * 0.3, ancho * 0.3, len(d)), d, s=8, color=ec, alpha=0.6, zorder=3)
+        ax.plot([], [], "s", color=fc, markeredgecolor=ec, label=etq)
+    ax.set_xticks(range(1, len(nombres) + 1)); ax.set_xticklabels(nombres)
+    nombre_met = metrica.replace(" (test)", "")
+    ax.set_ylabel(nombre_met)
+    ax.set_title(titulo or f"{nombre_met} over the repetitions", fontsize=11)
+    if k > 1:
+        ax.legend(frameon=False, fontsize=9)
     ax.spines[["top", "right"]].set_visible(False)
     plt.setp(ax.get_xticklabels(), rotation=20, ha="right")
     fig.tight_layout()

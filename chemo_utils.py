@@ -78,6 +78,23 @@ def derivada_sg(X, orden, ventana=11, orden_polinomio=2):
     return savgol_filter(X, window_length=ventana, polyorder=orden_polinomio, deriv=orden, axis=1)
 
 
+def offset_minimo(X):
+    """UV-Vis: subtracts from each spectrum its own minimum (removes a constant offset)."""
+    X = np.asarray(X, dtype=float)
+    return X - X.min(axis=1, keepdims=True)
+
+
+def offset_region(X, eje, lo, hi):
+    """UV-Vis: subtracts from each spectrum the mean of a reference region (where the sample
+    should not absorb, e.g. 700-800 nm), which removes a constant offset / baseline shift."""
+    X = np.asarray(X, dtype=float)
+    eje = np.asarray(eje, dtype=float)
+    m = (eje >= min(lo, hi)) & (eje <= max(lo, hi))
+    if not m.any():
+        raise ValueError("The reference region contains no points of the spectral axis.")
+    return X - X[:, m].mean(axis=1, keepdims=True)
+
+
 def aplicar_pretratamientos(X, pasos):
     """
     Aplica una secuencia de pretratamientos en el orden dado.

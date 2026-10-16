@@ -584,14 +584,16 @@ def _b_remuestreo(ss, pref):
                + ". The model was refitted on every split.")
     b.append({"tipo": "parrafo", "texto": txt + " Values are mean +/- standard deviation over the repetitions"
                                               + (" and the 95% interval (2.5-97.5 percentiles)." if boot else ".")})
-    metricas = [c for c in next(iter(res.values())).columns if c != "split"]
-    enc = ["Model"] + [m + (" (mean +/- SD; 95% CI)" if boot else " (mean +/- SD)") for m in metricas]
+    _cols = [c for c in next(iter(res.values())).columns if c != "split"]
+    _te = [c for c in _cols if c.endswith("(test)")] or _cols
+    metricas = _te + [c for c in _cols if c.endswith("(train)")]
+    enc = ["Model"] + [m + (" (mean +/- SD; 95% CI)" if (boot and m in _te) else " (mean +/- SD)") for m in metricas]
     filas = []
     for nm, df in res.items():
         f = [nm]
         for m in metricas:
             t = f"{df[m].mean():.3f} +/- {df[m].std(ddof=1):.3f}"
-            if boot:
+            if boot and m in _te:
                 t += f"; {df[m].quantile(0.025):.3f}-{df[m].quantile(0.975):.3f}"
             f.append(t)
         filas.append(f)
@@ -604,6 +606,11 @@ def _b_remuestreo(ss, pref):
     if len(ord_) > 1 and medias[ord_[0]] - medias[ord_[1]] < max(sds[ord_[0]], sds[ord_[1]]):
         msg += (f" {ord_[0]} and {ord_[1]} differ by less than their standard deviation, so the difference between them "
                 "cannot be considered real.")
+    _tr_col = metricas[0].replace("(test)", "(train)")
+    if _tr_col in next(iter(res.values())).columns and _tr_col != metricas[0]:
+        partes = [f"{nm}: train {float(df[_tr_col].mean()):.3f} vs test {medias[nm]:.3f}" for nm, df in res.items()]
+        msg += (" Mean " + metricas[0].replace(" (test)", "") + " in training vs test: " + "; ".join(partes)
+                + ". A training value much better than the test value means the model is overfitting.")
     b.append({"tipo": "parrafo", "texto": msg})
     return b
 

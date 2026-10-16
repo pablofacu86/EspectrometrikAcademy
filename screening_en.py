@@ -73,6 +73,20 @@ RECETAS_POR_TIPO = {
         ("Standardization", "Standardization", "None"),
         ("Normalization (area)", "Normalization (area)", "None"),
     ],
+    "UV-Vis": [
+        ("None (no preprocessing)", "None", "None"),
+        ("Offset (minimum)", "Offset correction (subtract minimum)", "None"),
+        ("SNV", "SNV", "None"),
+        ("MSC", "MSC", "None"),
+        ("1st derivative", "None", "1st derivative"),
+        ("2nd derivative", "None", "2nd derivative"),
+        ("Offset + 1st derivative", "Offset correction (subtract minimum)", "1st derivative"),
+        ("MSC + 1st derivative", "MSC", "1st derivative"),
+        ("Smoothing", "None", "Smoothing (order 0)"),
+        ("Baseline (ALS)", "Baseline correction (ALS)", "None"),
+        ("Normalization (area)", "Normalization (area)", "None"),
+        ("Standardization", "Standardization", "None"),
+    ],
     "Raman": [
         ("None (no preprocessing)", "None", "None"),
         ("Baseline correction (ALS)", "Baseline correction (ALS)", "None"),
@@ -112,6 +126,7 @@ def construir_secuencia(paso_a, paso_b, eje=None):
         "EMSC": ("emsc", {"eje": eje, "orden_polinomio": 2}),
         "Baseline correction (ALS)": ("linea_base_als", {"lam": 1e5, "p": 0.01}),
         "Remove cosmic rays": ("eliminar_rayos_cosmicos", {"ventana": 5, "umbral": 7}),
+        "Offset correction (subtract minimum)": ("offset_minimo", {}),
     }
     mapa_b = {
         "Smoothing (order 0)": ("suavizado_sg", {"ventana": 11, "orden_polinomio": 2}),

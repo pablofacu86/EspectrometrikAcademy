@@ -810,22 +810,32 @@ def _ui_remuestreo(pref, modelos, X, y, es_clf, prop_default=0.25):
         st.error(f"Resampling failed: {st.session_state[f'{pref}_rs_err']}")
     res = st.session_state.get(f"{pref}_rs_res")
     if res:
-        metricas = [c for c in next(iter(res.values())).columns if c != "split"]
+        _cols = [c for c in next(iter(res.values())).columns if c != "split"]
+        metricas_te = [c for c in _cols if c.endswith("(test)")] or _cols
+        metricas_tr = [c for c in _cols if c.endswith("(train)")]
         filas = []
         for nm, df in res.items():
             fila = {"Model": nm}
-            for c in metricas:
-                fila[c] = f"{df[c].mean():.3f} ± {df[c].std(ddof=1):.3f}"
-                if st.session_state.get(f"{pref}_rs_boot"):
-                    fila[c + " (95% CI)"] = f"{df[c].quantile(0.025):.3f} – {df[c].quantile(0.975):.3f}"
+            for c in metricas_te + metricas_tr:
+                fila[T(c)] = f"{df[c].mean():.3f} ± {df[c].std(ddof=1):.3f}"
+                if st.session_state.get(f"{pref}_rs_boot") and c in metricas_te:
+                    fila[T(c) + " (IC 95%)" if i18n.lang() == "es" else c + " (95% CI)"] = f"{df[c].quantile(0.025):.3f} – {df[c].quantile(0.975):.3f}"
             filas.append(fila)
-        st.dataframe(pd.DataFrame(filas), hide_index=True, width="stretch")
-        principal = metricas[0]
+        _dfm = pd.DataFrame(filas).rename(columns={"Model": T("Model")})
+        st.dataframe(_dfm, hide_index=True, width="stretch")
+        st.caption(T("**(test)** = samples left out of each fit: the honest estimate. **(train)** = samples used to fit the model. "
+                     "If train is much better than test, the model is overfitting."))
+        principal = metricas_te[0]
+        principal_tr = principal.replace("(test)", "(train)")
         fig = go.Figure()
-        for nm, df in res.items():
-            fig.add_trace(go.Box(y=df[principal], name=nm, boxpoints="all", jitter=0.4, pointpos=0, marker=dict(size=4)))
-        fig.update_layout(height=340, showlegend=False, yaxis_title=principal,
-                          title=dict(text=f"{principal} over {len(next(iter(res.values())))} " + ("bootstrap repetitions" if st.session_state.get(f"{pref}_rs_boot") else "random splits"), x=0.01))
+        for etq, col, color in ((T("Test"), principal, "#185FA5"), (T("Training"), principal_tr, "#E8A33D")):
+            if all(col in df.columns for df in res.values()):
+                fig.add_trace(go.Box(x=[nm for nm, df in res.items() for _ in range(len(df))],
+                                     y=[v for df in res.values() for v in df[col]], name=etq, boxpoints="all",
+                                     jitter=0.4, pointpos=0, marker=dict(size=4, color=color), line=dict(color=color)))
+        _met_nombre = principal.replace(" (test)", "")
+        fig.update_layout(height=360, boxmode="group", showlegend=True, yaxis_title=_met_nombre,
+                          title=dict(text=f"{_met_nombre} — {len(next(iter(res.values())))} " + T("bootstrap repetitions" if st.session_state.get(f"{pref}_rs_boot") else "random splits"), x=0.01))
         st.plotly_chart(fig, width="stretch")
         st.caption("Report as **mean ± SD** over the repetitions. A large SD means the result depends strongly on which "
                    "samples are used for testing (typical of small datasets). If two models differ by less than their SD, "
@@ -1864,6 +1874,8 @@ FUNCIONES_EXTRA = {
     "linea_base_als": cu.linea_base_als,
     "eliminar_rayos_cosmicos": cu.eliminar_rayos_cosmicos,
     "emsc": cu.emsc,
+    "offset_minimo": cu.offset_minimo,
+    "offset_region": cu.offset_region,
 }
 
 
@@ -2757,10 +2769,17 @@ if _abierta(tabs[2]):
 
         tipo_senal = st.radio(
             "Signal type",
-            ["NIR / MIR", "Raman", "Chromatogram", "NMR"],
+            ["NIR / MIR", "UV-Vis", "Raman", "Chromatogram", "NMR"],
             horizontal=True, key="pret_w_tipo",
             help="Changes which preprocessing options are available below.",
         )
+        if tipo_senal == "UV-Vis":
+            st.caption("UV-Vis spectra are broad, smooth bands (few peaks) sitting on a baseline that often has a "
+                       "constant offset or a slope caused by turbidity, scattering or cuvette differences. "
+                       "Typical: offset correction (or a reference region where nothing absorbs) → derivative "
+                       "to separate overlapped bands; SNV/MSC if the samples are turbid. Unlike NIR, normalizing "
+                       "by area or vector removes concentration information, so use it with care in regression "
+                       "(Beer–Lambert: absorbance is proportional to concentration).")
 
         # --- Step 0: NMR only (bucketing). Also changes the spectral axis. ---
         X_paso0 = X
@@ -2832,6 +2851,10 @@ if _abierta(tabs[2]):
         opciones_a_por_tipo = {
             "NIR / MIR": ["None", "Normalization (area)", "Normalization (vector)",
                           "Standardization", "SNV", "MSC", "EMSC"],
+            "UV-Vis": ["None", "Offset correction (subtract minimum)",
+                       "Offset correction (reference region)", "Baseline correction (ALS)",
+                       "SNV", "MSC", "Normalization (area)", "Normalization (vector)",
+                       "Standardization"],
             "Raman": ["None", "Remove cosmic rays", "Baseline correction (ALS)",
                       "SNV", "Standardization"],
             "Chromatogram": ["None", "Baseline correction (ALS)",
@@ -2840,6 +2863,7 @@ if _abierta(tabs[2]):
         }
         opciones_b_por_tipo = {
             "NIR / MIR": ["None", "Smoothing (order 0)", "1st derivative", "2nd derivative"],
+            "UV-Vis": ["None", "Smoothing (order 0)", "1st derivative", "2nd derivative"],
             "Raman": ["None", "Smoothing (order 0)", "1st derivative", "2nd derivative"],
             "Chromatogram": ["None"],
             "NMR": ["None"],
@@ -2858,6 +2882,18 @@ if _abierta(tabs[2]):
             lam_als = c1.select_slider("Baseline smoothness (lambda)",
                                         options=[1e3, 1e4, 1e5, 1e6, 1e7, 1e8], value=1e5, key="pret_w_lam", help="Higher lambda = smoother (stiffer) baseline. Use higher values for broad baselines.")
             p_als = c2.slider("Asymmetry (p)", min_value=0.001, max_value=0.1, value=0.01, step=0.001, key="pret_w_p", help="Low p (0.001–0.05) keeps the baseline under the peaks; higher p lets it follow the signal.")
+        ref_lo, ref_hi = 0.0, 0.0
+        if paso_a == "Offset correction (reference region)":
+            _ax = np.asarray(numeros_onda_paso0, dtype=float)
+            _amin, _amax = float(_ax.min()), float(_ax.max())
+            _w = (_amax - _amin) * 0.1
+            c1, c2 = st.columns(2)
+            ref_lo = c1.number_input("Reference region: from", min_value=_amin, max_value=_amax,
+                                     value=float(_amax - _w), key="pret_w_reflo",
+                                     help="Start of a region where your sample does NOT absorb (typically the long-wavelength end, e.g. 700–800 nm). The mean signal there is subtracted from each spectrum.")
+            ref_hi = c2.number_input("Reference region: to", min_value=_amin, max_value=_amax,
+                                     value=float(_amax), key="pret_w_refhi",
+                                     help="End of the reference region.")
         if paso_a == "Remove cosmic rays":
             c1, c2 = st.columns(2)
             ventana_rc = c1.slider("Median filter window (odd)", min_value=3, max_value=15, value=5, step=2, key="pret_w_vrc", help="Window of the median filter used to remove spikes. Larger windows also flatten narrow real peaks.")
@@ -2889,6 +2925,12 @@ if _abierta(tabs[2]):
             "EMSC": ("emsc", {"eje": numeros_onda_paso0, "orden_polinomio": orden_emsc} if paso_a == "EMSC" else {}),
             "Baseline correction (ALS)": (
                 "linea_base_als", {"lam": lam_als, "p": p_als} if paso_a == "Baseline correction (ALS)" else {}
+            ),
+            "Offset correction (subtract minimum)": ("offset_minimo", {}),
+            "Offset correction (reference region)": (
+                "offset_region", {"eje": np.asarray(numeros_onda_paso0, dtype=float),
+                                  "lo": float(ref_lo), "hi": float(ref_hi)}
+                if paso_a == "Offset correction (reference region)" else {}
             ),
             "Remove cosmic rays": (
                 "eliminar_rayos_cosmicos", {"ventana": ventana_rc, "umbral": umbral_rc}

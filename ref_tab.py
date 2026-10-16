@@ -79,7 +79,7 @@ def render():
         "bond that vibrate (IR, NIR, Raman), the protons that resonate (¹H NMR) or the chromophore (UV-Vis); R / R' is the rest of the molecule. "
         "The spectrum is a sketch built from the typical ranges, **not** a real measurement.")
     tipo = st.session_state.get("pret_w_tipo")
-    defecto = {"NMR": "¹H NMR", "Raman": "Raman"}.get(tipo, "FT-MIR")
+    defecto = {"NMR": "¹H NMR", "Raman": "Raman", "UV-Vis": "UV-Vis"}.get(tipo, "FT-MIR")
     opciones = list(TECS.keys())
     c1, c2, c3 = st.columns([3, 1.4, 1.4])
     tec = c1.radio("Technique", opciones, index=opciones.index(defecto), horizontal=True, key="ref_w_tec",
