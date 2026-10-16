@@ -720,6 +720,28 @@ def _seleccion_por_distancia_maxima(dist, n_seleccionar):
     return np.array(seleccionados)
 
 
+def _extremos_a_train(y, idx_train, idx_test):
+    """Regression: the samples with the lowest and the highest y must be in the TRAINING set, so the
+    test set stays inside the calibrated range (no extrapolation). If one of them landed in the test set,
+    it is swapped with the training sample whose y is closest to it (keeps the test size and the
+    stratification practically unchanged)."""
+    y = np.asarray(y, dtype=float)
+    tr = np.asarray(idx_train).copy(); te = np.asarray(idx_test).copy()
+    if len(te) == 0 or len(tr) < 3:
+        return tr, te
+    for ext in (int(np.nanargmin(y)), int(np.nanargmax(y))):
+        pos = np.where(te == ext)[0]
+        if len(pos) == 0:
+            continue
+        protegidos = {int(np.nanargmin(y)), int(np.nanargmax(y))}
+        cand = np.array([k for k in range(len(tr)) if int(tr[k]) not in protegidos])
+        if len(cand) == 0:
+            continue
+        k = cand[np.argmin(np.abs(y[tr[cand]] - y[ext]))]
+        te[pos[0]], tr[k] = tr[k], te[pos[0]]
+    return tr, te
+
+
 def dividir_train_test(X, y, ids, proporcion_test=0.2, es_clasificacion=True,
                         random_state=0, metodo_split="random"):
     """
@@ -787,6 +809,8 @@ def dividir_train_test(X, y, ids, proporcion_test=0.2, es_clasificacion=True,
     idx_train, idx_test = train_test_split(
         idx, test_size=proporcion_test, stratify=estratos, random_state=random_state
     )
+    if not es_clasificacion:
+        idx_train, idx_test = _extremos_a_train(y, idx_train, idx_test)
     return idx_train, idx_test
 
 
@@ -1306,6 +1330,11 @@ def remuestreo_train_test(modelo, X, y, es_clasificacion, n_rep=20, prop_test=0.
                 intentos += 1
                 tr = rng.randint(0, n, n)
                 te = np.setdiff1d(np.arange(n), tr)
+                if not es_clasificacion:
+                    # the lowest and the highest y must be in training: move them there if they are out-of-bag
+                    ext = [int(np.nanargmin(y)), int(np.nanargmax(y))]
+                    tr = np.concatenate([tr, [e for e in ext if e not in set(tr.tolist())]]).astype(int)
+                    te = np.setdiff1d(np.arange(n), tr)
                 if len(te) < 2 or (es_clasificacion and len(np.unique(y[tr])) < len(np.unique(y))):
                     continue
                 hechos += 1
@@ -1317,6 +1346,8 @@ def remuestreo_train_test(modelo, X, y, es_clasificacion, n_rep=20, prop_test=0.
         else:
             ss = ShuffleSplit(n_splits=n_rep, test_size=prop_test, random_state=random_state)
         pares = ss.split(X, y)
+        if not es_clasificacion:
+            pares = (_extremos_a_train(y, tr_, te_) for tr_, te_ in pares)
     filas = []
     for i, (tr, te) in enumerate(pares):
         m = clone(modelo)

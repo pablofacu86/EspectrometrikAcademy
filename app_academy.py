@@ -678,6 +678,9 @@ def _ui_split(es_clf, prop, key, simca=False):
              "looks better. Kennard-Stone/SPXY involve no randomness, so the seed is not used there.")
     if metodo != "kennard_stone" and prop > 0:
         st.caption("🎲 The seed is just the number of the 'shuffle': the same seed repeats the same split; another seed gives another split. Try 0, 1, 2 to see how much the result depends on the luck of the split.")
+    if (not es_clf) and metodo != "kennard_stone" and prop > 0:
+        st.caption(T("📌 In regression, the sample with the lowest y and the one with the highest y always go to the TRAINING set "
+                     "(also in the screening and in the resampling), so the test set never falls outside the range the model was calibrated on."))
     gu.pros_cons(pc, sel, key="pc_" + key)
     if metodo == "kennard_stone":
         st.caption("ℹ️ Kennard-Stone is deterministic: it picks the TRAINING set to cover the spectral space within EACH class separately (including the more 'extreme' samples); the remaining, more 'typical' samples become the test set. No seed is needed."
@@ -5958,7 +5961,7 @@ if _abierta(tabs[14]):
                             fila["RPD (test)"] = round(res["test"]["rpd"], 2)
                         filas.append(fila)
                     df_metricas_reg = pd.DataFrame(filas)
-                    _ui_dispersion_y(y_reg, _rr.get("idx_split"))
+                    _ui_dispersion_y(y_reg, (st.session_state.get("reg_run") or {}).get("idx_split"))
                     _rm1, _rm2, _rm3 = st.columns([1.5, 1.9, 3])
                     with _rm1:
                         gu.how_to_interpret("reg", valores=gu.valores_reg(), key="how_res_reg")

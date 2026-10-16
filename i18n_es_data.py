@@ -2693,4 +2693,5 @@ ES = {
     'SD': 'Desvío',
     'Min': 'Mínimo',
     'Max': 'Máximo',
+    '📌 In regression, the sample with the lowest y and the one with the highest y always go to the TRAINING set (also in the screening and in the resampling), so the test set never falls outside the range the model was calibrated on.': '📌 En regresión, la muestra con el menor y y la de mayor y siempre van al conjunto de ENTRENAMIENTO (también en el screening y en el remuestreo), así el test nunca queda fuera del rango con el que se calibró el modelo.',
 }
