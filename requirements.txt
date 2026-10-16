@@ -8,3 +8,6 @@ matplotlib
 seaborn
 openpyxl
 xlrd
+optuna
+xgboost
+statsmodels
