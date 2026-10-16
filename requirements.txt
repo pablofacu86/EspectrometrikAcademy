@@ -1,7 +1,10 @@
 streamlit
 pandas
 numpy
+scipy
 scikit-learn
 plotly
+matplotlib
+seaborn
 openpyxl
 xlrd
