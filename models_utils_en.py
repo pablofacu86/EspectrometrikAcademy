@@ -769,6 +769,8 @@ def dividir_train_test(X, y, ids, proporcion_test=0.2, es_clasificacion=True,
       - "random": plain random split (no stratification).
       - "random_strat": random split stratified by class (classification) or by
         quantile bins of y (regression).
+      - "y_uniform" (regression only): systematic sampling along the sorted y, so the test set
+        covers the whole concentration range (extremes stay in training).
       - "kennard_stone": for classification, plain Kennard-Stone (X-distance
         only) is run SEPARATELY within each class, so every class
         contributes its own proportional share to both train and test
@@ -806,6 +808,20 @@ def dividir_train_test(X, y, ids, proporcion_test=0.2, es_clasificacion=True,
         idx_train = spxy(X, y, n_train)
         idx_test = np.array([i for i in idx if i not in set(idx_train.tolist())])
         return idx_train, idx_test
+
+    if metodo_split == "y_uniform" and not es_clasificacion:
+        # Regression: sort by y and take the test samples at evenly spaced positions along the sorted
+        # list, so the test set covers the WHOLE y range (low, middle, high) instead of clustering
+        # around the mean. The seed only shifts where inside each slot the sample is taken.
+        yv = np.asarray(y, dtype=float)
+        n = len(yv)
+        n_test = int(max(2, min(n - 2, round(n * proporcion_test))))
+        orden = np.argsort(yv, kind="mergesort")
+        u = np.random.RandomState(random_state).uniform(0.2, 0.8)
+        pos = np.unique(np.clip(np.floor((np.arange(n_test) + u) * n / n_test).astype(int), 0, n - 1))
+        idx_test = orden[pos]
+        idx_train = np.setdiff1d(idx, idx_test)
+        return _extremos_a_train(y, idx_train, idx_test)
 
     # "random" = plain random split; "random_strat" (or legacy "strat_y") = stratified random split.
     estrat = metodo_split in ("random_strat", "strat_y")

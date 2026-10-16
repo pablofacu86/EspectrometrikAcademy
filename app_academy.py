@@ -650,18 +650,22 @@ def _ui_split(es_clf, prop, key, simca=False):
         opciones = ["Random", "Random (stratified)", "Kennard-Stone (representative)"]
         pc = "split_clf"
     else:
-        opciones = ["Random", "Random (stratified by y range)", "SPXY (extended Kennard-Stone)"]
+        opciones = ["Random", "Random (stratified by y range)", "SPXY (extended Kennard-Stone)",
+                    "Uniform y coverage (systematic)"]
         pc = "split_reg"
     _ayuda_clf = ("How to choose which samples go into the independent test set. 'Random' picks them purely by chance. "
                   "'Random (stratified)' also uses chance, but keeps the proportion of each class equal in train and test. "
                   "'Kennard-Stone' instead picks the training set to cover the whole spectral space, class by class.")
     _ayuda_reg = ("How to choose which samples go into the independent test set. 'Random' picks them purely by chance. "
                   "'Random (stratified by y range)' also uses chance, but keeps the proportion of each level of y (quantile bins) equal in train and test. "
-                  "'SPXY' (extended Kennard-Stone, Galvão 2005) picks the training set to cover both the spectral space and the y range.")
+                  "'SPXY' (extended Kennard-Stone, Galvão 2005) picks the training set to cover both the spectral space and the y range. "
+                  "'Uniform y coverage (systematic)' sorts the samples by y and takes the test samples at evenly spaced positions, so the test set covers the whole concentration range, with the lowest and highest y kept in training.")
     sel = st.selectbox("Test set selection", opciones, index=1, disabled=(prop == 0), key=key,
                        help=_ayuda_clf if es_clf else _ayuda_reg)
     if sel.startswith("Kennard-Stone") or sel.startswith("SPXY"):
         metodo = "kennard_stone"
+    elif sel.startswith("Uniform y"):
+        metodo = "y_uniform"
     elif "stratified" in sel:
         metodo = "random_strat"
     else:
@@ -761,6 +765,12 @@ _RS_EXPLAIN = ("Imagine your samples are numbered balls in a bag (say 10 balls).
     "training set contains repeated samples. You get a spread of values for each metric, so you can also read a 95 % interval.\n\n"
     "**Which one?** Hold-out is simpler and keeps a fixed test size; bootstrap makes good use of small datasets and is the usual choice to put an "
     "uncertainty on a metric.")
+_RS_NOTA_SPLIT_REG = ("ℹ️ Resampling always uses RANDOM splits, whatever 'Test set selection' you chose above. That is on purpose: its goal is to "
+                      "see how much the result changes from split to split, and a deterministic method (SPXY, uniform y coverage) would give the "
+                      "same split every time, so there would be no spread to measure. The lowest and highest y are always kept in training.")
+_RS_NOTA_SPLIT_CLF = ("ℹ️ Resampling always uses RANDOM splits (stratified by class), whatever 'Test set selection' you chose above. That is on purpose: "
+                      "its goal is to see how much the result changes from split to split, and a deterministic method (Kennard-Stone) would give the "
+                      "same split every time, so there would be no spread to measure.")
 _RS_HELP = ("Repeated hold-out: each repetition takes out a fixed fraction of the samples as test and does not put them back. "
     "Bootstrap: each repetition draws N samples, putting each one back after drawing it (so some repeat); the samples that never came out are the test set (about 37 %). "
     "In both, a sample is never in training and test in the same repetition; what changes is which samples are in the test set each time.")
@@ -771,6 +781,7 @@ def _ui_remuestreo(pref, modelos, X, y, es_clf, prop_default=0.25):
     if _BASICO:
         st.caption(T("🔒 Advanced section — greyed out in First steps mode. Switch to 🔬 I have experience (top of the page) to use it."))
     st.caption(T(_RS_INTRO_CLF if es_clf else _RS_INTRO_REG))
+    st.caption(T(_RS_NOTA_SPLIT_CLF if es_clf else _RS_NOTA_SPLIT_REG))
     with st.expander(T("🔎 How do the two methods work? (read this first)"), expanded=False):
         st.markdown(T(_RS_EXPLAIN))
     metodo_rs = st.radio("Resampling method", ["Repeated hold-out (Monte Carlo)", "Bootstrap (out-of-bag)"],
@@ -7079,9 +7090,10 @@ if _abierta(tabs[11]):
                     _clf_s = _tarea in ("Classification", "SIMCA")
                     _ms1, _ms2 = st.columns(2)
                     _opc_split_s = (["Random", "Random (stratified)", "Kennard-Stone (representative)"] if _clf_s
-                                    else ["Random", "Random (stratified by y range)", "SPXY (extended Kennard-Stone)"])
+                                    else ["Random", "Random (stratified by y range)", "SPXY (extended Kennard-Stone)",
+                                      "Uniform y coverage (systematic)"])
                     _split_sel_s = _ms1.selectbox("Test set selection", _opc_split_s, index=1, key=f"scr_w_split_{_clf_s}",
-                                                  help="Same three options as in the modelling tabs. In the screening ONE single split is made "
+                                                  help="Same options as in the modelling tabs. In the screening ONE single split is made "
                                                        "(with the seed on the right) and EVERY pre-treatment, variable selection and algorithm "
                                                        "is trained and tested on exactly the same samples, so the comparison is fair.")
                     _seed_s = _ms2.number_input("Random seed", 0, 999999, 0, step=1, key="scr_w_seed",
@@ -7090,7 +7102,8 @@ if _abierta(tabs[11]):
                                                      "same seed, so differences between them come from the method, not from a luckier split. "
                                                      "Kennard-Stone/SPXY are deterministic and ignore it.")
                     _split_m_s = ("kennard_stone" if _split_sel_s.startswith(("Kennard", "SPXY"))
-                                  else ("random_strat" if "stratified" in _split_sel_s else "random"))
+                                  else ("y_uniform" if _split_sel_s.startswith("Uniform y")
+                                        else ("random_strat" if "stratified" in _split_sel_s else "random")))
                     _opt_s = _s3.checkbox("Optimize hyperparameters (fastest preset)", value=False, key="scr_w_opt",
                                           disabled=(_tarea == "SIMCA") or _BASICO,
                                           help="Random search over 8 combinations — the quickest search option, but it still "

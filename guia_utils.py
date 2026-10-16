@@ -468,6 +468,13 @@ PROS_CONTRAS = {
                 ["Ignores the spectra (X) completely.",
                  "With very few samples the bins can only be coarse."],
                 "Recommended default for regression when y is skewed or the range matters."),
+            "Uniform y coverage (systematic)": (
+                ["Sorts by y and takes the test samples at evenly spaced positions: the test set covers the whole concentration range.",
+                 "The lowest and highest y stay in training, so the test never extrapolates.",
+                 "The seed only shifts the position inside each slot, so the split is almost deterministic."],
+                ["Ignores the spectra (X): it does not guarantee coverage of the spectral space.",
+                 "With very few samples the test set is tiny and its error estimate noisy."],
+                "Regression when you want the test set to represent low, middle and high concentrations."),
             "SPXY (extended Kennard-Stone)": (
                 ["Training set spreads over BOTH the spectral space and the y range.",
                  "Deterministic and reproducible; widely used in NIR calibration."],
