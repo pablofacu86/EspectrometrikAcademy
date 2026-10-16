@@ -710,20 +710,69 @@ def _diagnostico_curva(curva):
         return ""
 
 
+def _ui_dispersion_y(y, idx_split):
+    """Descriptive statistics of the response y: all samples, training and test (regression)."""
+    y = np.asarray(y, dtype=float)
+    conj = [("All samples", np.arange(len(y)))]
+    if idx_split is not None:
+        conj += [("Training", np.asarray(idx_split[0])), ("Test", np.asarray(idx_split[1]))]
+    filas = []
+    for nombre, idx in conj:
+        v = y[idx]
+        v = v[np.isfinite(v)]
+        if len(v) == 0:
+            continue
+        filas.append({"Set": nombre, "n": int(len(v)), "Mean": float(np.mean(v)),
+                      "SD": float(np.std(v, ddof=1)) if len(v) > 1 else float("nan"),
+                      "Min": float(np.min(v)), "Max": float(np.max(v)), "Range": float(np.max(v) - np.min(v))})
+    if not filas:
+        return
+    st.markdown("**" + T("Dispersion of y (reference values)") + "**")
+    _df = pd.DataFrame(filas).set_index("Set").round(4)
+    _df.index = [T(i) for i in _df.index]
+    _df.index.name = T("Set")
+    st.dataframe(_df, width="stretch")
+    st.caption(T("A test set whose mean, SD or range are very different from the training set makes the test metrics hard to trust: "
+                 "the split may not be representative. Compare the three rows."))
+
+
+_RS_INTRO_REG = ("A single train/test split can be lucky or unlucky. Resampling repeats the whole exercise many times: in each repetition "
+    "the data are split again at random, every trained model is refitted with the same hyperparameters and evaluated on the samples that "
+    "were left out of its training. Each repetition has its own test set, so a sample can be in the test set in one repetition and in the "
+    "training set in another. The mean ± standard deviation of the metrics tells you the result you can honestly expect and how much it "
+    "depends on which samples end up in the test set.")
+_RS_INTRO_CLF = ("A single train/test split can be lucky or unlucky. Resampling repeats the whole exercise many times: in each repetition "
+    "the data are split again at random, keeping the class proportions, every trained model is refitted with the same hyperparameters and "
+    "evaluated on the samples that were left out of its training. Each repetition has its own test set, so a sample can be in the test set "
+    "in one repetition and in the training set in another. The mean ± standard deviation of the metrics tells you the result you can "
+    "honestly expect and how much it depends on which samples end up in the test set.")
+_RS_EXPLAIN = ("Imagine your samples are numbered balls in a bag (say 10 balls). Each repetition builds a new training set and a new test set. "
+    "**In both methods a ball is never in training and in test within the same repetition**; what changes from one repetition to the next is "
+    "which balls end up in the test set, so over many repetitions every ball takes turns.\n\n"
+    "**Repeated hold-out (Monte Carlo)** — you take out a fixed number of balls and do not put them back (e.g. 3 out of 10, about 25 %): those are the "
+    "test set and the other 7 are the training set. Then you put all the balls back in the bag and draw again. Nothing is repeated inside a draw and "
+    "the size of the test set is always the same.\n\n"
+    "**Bootstrap (out-of-bag)** — you take out a ball, write its number down and **put it back in the bag**, so it can come out again; you do this 10 times. "
+    "That list is the training set: it has 10 entries, but some balls appear two or three times (for example 3, 7, 3, 1, 9, 7, 7, 2, 10, 5). "
+    "The balls that never came out (here 4, 6 and 8; about 37 % on average) are the test set. So the test set changes size a little each time and the "
+    "training set contains repeated samples. You get a spread of values for each metric, so you can also read a 95 % interval.\n\n"
+    "**Which one?** Hold-out is simpler and keeps a fixed test size; bootstrap makes good use of small datasets and is the usual choice to put an "
+    "uncertainty on a metric.")
+_RS_HELP = ("Repeated hold-out: each repetition takes out a fixed fraction of the samples as test and does not put them back. "
+    "Bootstrap: each repetition draws N samples, putting each one back after drawing it (so some repeat); the samples that never came out are the test set (about 37 %). "
+    "In both, a sample is never in training and test in the same repetition; what changes is which samples are in the test set each time.")
+
 def _ui_remuestreo(pref, modelos, X, y, es_clf, prop_default=0.25):
     """Optional resampling for ALL trained models: many random train/test splits → metrics ± SD."""
-    st.markdown("#### 🔁 Resampling: metrics with their uncertainty (optional)")
+    st.markdown("#### " + T("🔁 Resampling: metrics with their uncertainty (optional)"))
     if _BASICO:
         st.caption(T("🔒 Advanced section — greyed out in First steps mode. Switch to 🔬 I have experience (top of the page) to use it."))
-    st.caption("A single train/test split can be lucky or unlucky. Here the split is **repeated many times** (random"
-               + (", stratified by class" if es_clf else "") + "); every trained model is refitted each time with the same "
-               "hyperparameters and tested on the samples left out. The mean ± standard deviation tells you the "
-               "result you can honestly expect and how much it depends on which samples ended up in the test set.")
+    st.caption(T(_RS_INTRO_CLF if es_clf else _RS_INTRO_REG))
+    with st.expander(T("🔎 How do the two methods work? (read this first)"), expanded=False):
+        st.markdown(T(_RS_EXPLAIN))
     metodo_rs = st.radio("Resampling method", ["Repeated hold-out (Monte Carlo)", "Bootstrap (out-of-bag)"],
                          horizontal=True, key=f"{pref}_rs_met", disabled=_BASICO,
-                         help="Repeated hold-out: each repetition holds out a fixed fraction of the samples as test, drawn at random without replacement. "
-                              "Bootstrap: each repetition trains on N samples drawn WITH replacement (some repeated, ~63 % distinct) and tests on the samples that were never drawn (out-of-bag, ~37 %); the test samples are never in that training set. "
-                              "Both rotate the samples between train and test, so no single lucky or unlucky test set decides the result.")
+                         help=T(_RS_HELP))
     _boot = metodo_rs.startswith("Bootstrap")
     c1, c2, c3 = st.columns([1, 1, 1])
     n_rep = c1.slider("Number of repetitions", 5, 200 if _boot else 100, 50 if _boot else 20, step=5, key=f"{pref}_rs_n{'b' if _boot else ''}", disabled=_BASICO)
@@ -4181,6 +4230,17 @@ if _abierta(tabs[9]):
 # -----------------------------------------------------------------------
 # TAB: OTHER TOOLS
 # -----------------------------------------------------------------------
+_OTROS_AYUDA = {
+    'Loadings vs wavenumber': ('Shows how much each spectral variable contributes to each principal component (PC): one curve per PC along the spectral axis.', '**When to use it:** after the PCA, to find *which regions of the spectrum* explain the separation you see in the scores plot.', '**How to read it:** peaks and valleys far from zero are the variables that drive that PC. Variables with the same sign move together; opposite signs move in opposite directions. Compare with the scores: samples on the positive side of the PC have more of the positive-loading variables.', '**Careful:** the overall sign of a PC is arbitrary (flipping it changes nothing), and the loadings depend on the preprocessing you chose.'),
+    'Ranking of important variables': ('Lists the variables with the largest weight (loading) on a chosen PC, as a bar chart.', '**When to use it:** when you want a short, readable list of the wavelengths or variables that matter most for a PC, for example to decide what to crop or keep.', '**How to read it:** the longer the bar, the more that variable contributes to the PC. Blue bars are positive, red bars negative; both matter equally (what counts is the length).', '**Careful:** this ranking comes from PCA, which does not know your classes or your y. A variable can be important for the PCA and useless for predicting. For selection aimed at a model, use the variable selection tools in the modelling tabs.'),
+    'Loadings correlation plot': ('Draws every variable as a point according to its loading on two PCs, scaled so that distance from the centre reads like a correlation with each PC.', '**When to use it:** to see at a glance which variables go together and which ones oppose each other in the PC1–PC2 plane (or any other pair).', '**How to read it:** points near the outer circle are well represented by those two PCs; points near the centre are not. Points close to each other are positively correlated; on opposite sides of the centre, negatively; at a right angle, roughly unrelated. The highlighted points are the strongest ones.', '**Careful:** it only describes the two PCs you picked. A variable near the centre may still matter in another PC.'),
+    'Mean spectrum by class': ('Plots the average spectrum (or profile) of each class on the same axes.', '**When to use it:** to see *where* the classes differ, before modelling, and to check that the differences make chemical sense.', '**How to read it:** regions where the class curves separate are candidates to be informative; where they overlap, the classes are indistinguishable there. Compare the size of the separation with the spread inside each class.', '**Careful:** a mean hides the spread of the samples, and a small class gives a noisy mean. A difference between means is not yet a significant difference.'),
+    'Clustermap (heatmap + dendrogram)': ('A heatmap of the data (samples × variables) with the rows and columns re-ordered by hierarchical clustering, with a dendrogram on the sides.', '**When to use it:** to see groups of similar samples and groups of variables that behave alike in a single picture; it is common for tabular data.', '**How to read it:** blocks of similar colour mean samples that look alike across those variables. The dendrogram tells you how close the groups are: branches that join low are very similar. The linkage method changes how groups are merged (Ward gives compact groups of similar size; single can chain samples).', '**Careful:** the clusters depend on the scaling and the linkage; try more than one. A cluster is a suggestion, not a proof that the groups exist.'),
+    't-SNE': ('A non-linear map that squeezes the data into 2D keeping samples that are close in the original space close on the plot.', '**When to use it:** to visualise groups when the PCA does not separate them well, or to look for subgroups. It is for looking, not for measuring.', '**How to read it:** points that form an island are samples that look alike. *Perplexity* is roughly how many neighbours each point considers: small values show fine local detail (and may split real groups), large values smooth things out. Try several values.', '**Careful:** distances between islands, the size of the islands and the axes mean nothing. A different seed or perplexity can change the picture. Never use it to measure how different two groups are.'),
+    'UMAP': ('A non-linear 2D map like t-SNE, usually faster and better at keeping some of the global structure.', '**When to use it:** the same cases as t-SNE, especially with more samples; and when you also care about how the groups are arranged relative to each other.', '**How to read it:** islands are groups of similar samples. *n_neighbors* controls the balance: low values emphasise local detail, high values emphasise the global picture.', '**Careful:** it is still a visualisation. Distances and sizes are only roughly meaningful, and results vary with the parameters and the seed.'),
+    'MCR-ALS (mixture resolution)': ("Splits your spectra into a small number of 'pure' components: their spectra and how much of each one is in every sample.", "**When to use it:** when your samples are mixtures of a few species (reactions, kinetics, formulations, mixtures) and you want to recover each species' spectrum and its concentration profile without knowing them in advance.", '**How to read it:** the recovered spectra should look like chemically sensible spectra (compare them with references), and the concentrations should evolve sensibly across the samples. The lack of fit tells you how much of the data the model does not explain.', '**Careful:** you must choose the number of components, and different solutions can fit equally well (rotational ambiguity). Treat the result as a hypothesis to check, not as the answer.'),
+}
+
 if _abierta(tabs[10]):
     # Each tab re-runs ON ITS OWN when one of its widgets changes (fragment), instead of
     # re-executing the whole app. Buttons that must refresh other parts call st.rerun().
@@ -4203,6 +4263,13 @@ if _abierta(tabs[10]):
             key="otros_w_herramienta",
             help="Pick which exploratory technique to run on the preprocessed data.",
         )
+
+        _ay = _OTROS_AYUDA.get(herramienta)
+        if _ay:
+            st.info(T(_ay[0]))
+            with st.expander(T("📖 When to use it and how to read it"), expanded=False):
+                for _linea in _ay[1:]:
+                    st.markdown(T(_linea))
 
         tiene_pca = st.session_state.get("pca_completo") is not None
         _crop_mask_otros = None
@@ -5891,6 +5958,7 @@ if _abierta(tabs[14]):
                             fila["RPD (test)"] = round(res["test"]["rpd"], 2)
                         filas.append(fila)
                     df_metricas_reg = pd.DataFrame(filas)
+                    _ui_dispersion_y(y_reg, _rr.get("idx_split"))
                     _rm1, _rm2, _rm3 = st.columns([1.5, 1.9, 3])
                     with _rm1:
                         gu.how_to_interpret("reg", valores=gu.valores_reg(), key="how_res_reg")

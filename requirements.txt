@@ -7,6 +7,8 @@ plotly
 matplotlib
 seaborn
 openpyxl
+xlrd
+pillow
 umap-learn
 xgboost
 boruta
