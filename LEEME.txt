@@ -1,0 +1,26 @@
+CÓMO SUBIR ESTOS ARCHIVOS AL REPOSITORIO DE GITHUB
+==================================================
+
+1) validacion_quimiometria.py
+   -> Subirlo a la carpeta principal del repo (la misma donde está app.py).
+
+2) pages/2_Validacion_regresion.py
+   -> Subirlo dentro de una carpeta llamada "pages" en la carpeta principal.
+      Si la carpeta no existe, en GitHub: "Add file" > "Upload files" y arrastrar
+      la carpeta "pages" completa.
+
+3) requirements.txt
+   -> Si el repo NO tiene requirements.txt: subir este.
+   -> Si YA tiene uno: NO lo reemplaces. Abrí el tuyo y agregá al final las
+      líneas de este archivo que no estén (una por renglón).
+
+Estructura final del repo:
+   app.py                         (el tuyo, sin cambios)
+   validacion_quimiometria.py     (nuevo)
+   requirements.txt               (nuevo o actualizado)
+   pages/
+       2_Validacion_regresion.py  (nuevo)
+
+Después: en Posit Connect Cloud, "Republish" (si no se actualiza solo).
+En la app va a aparecer una página nueva en el menú lateral:
+"Validacion regresion".
