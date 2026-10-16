@@ -742,7 +742,8 @@ def fig_curva_aprendizaje(curva, nombre_modelo=""):
 def fig_remuestreo(res, metrica, titulo=""):
     """Box plot (with the individual repetitions) of one metric for every model: test and, when available, training."""
     nombres = list(res.keys())
-    metrica_tr = metrica.replace("(test)", "(train)") if metrica.endswith("(test)") else None
+    metrica_tr = (metrica.replace("RMSEP (test)", "RMSE (train)").replace("(test)", "(train)")
+                  if metrica.endswith("(test)") else None)
     series = [("Test", metrica, "#D6E6F5", "#185FA5")]
     if metrica_tr and all(metrica_tr in res[n].columns for n in nombres):
         series.append(("Training", metrica_tr, "#FBE3B8", "#C98A1B"))

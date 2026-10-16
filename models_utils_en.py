@@ -371,7 +371,7 @@ ALGORITMOS_LENTOS_AL_OPTIMIZAR = {"Random Forest", "XGBoost", "SVM", "SVM (SVR)"
 
 
 
-def construir_particionador(cv, y, es_clasificacion, random_state=0):
+def construir_particionador(cv, y, es_clasificacion, random_state=0, n_repeticiones=1):
     """
     Arma el particionador de validación cruzada a partir de 'cv', que puede
     ser un entero (k-fold) o el string "LOO" (Leave-One-Out: en cada
@@ -381,10 +381,17 @@ def construir_particionador(cv, y, es_clasificacion, random_state=0):
     """
     if isinstance(cv, str) and cv.upper() == "LOO":
         return LeaveOneOut(), len(y)
+    n_repeticiones = int(max(1, n_repeticiones or 1))
     if es_clasificacion:
         cv_real = min(cv, np.min(np.unique(y, return_counts=True)[1]))
+        if n_repeticiones > 1:
+            from sklearn.model_selection import RepeatedStratifiedKFold
+            return RepeatedStratifiedKFold(n_splits=cv_real, n_repeats=n_repeticiones, random_state=random_state), cv_real
         return StratifiedKFold(n_splits=cv_real, shuffle=True, random_state=random_state), cv_real
     cv_real = min(cv, len(y))
+    if n_repeticiones > 1:
+        from sklearn.model_selection import RepeatedKFold
+        return RepeatedKFold(n_splits=cv_real, n_repeats=n_repeticiones, random_state=random_state), cv_real
     return KFold(n_splits=cv_real, shuffle=True, random_state=random_state), cv_real
 
 
@@ -404,7 +411,7 @@ def _elegir_recurso_halving(grilla):
 
 
 def optimizar_hiperparametros(modelo, grilla, X, y, es_clasificacion, cv=5,
-                               metodo="balanced", n_iter=20, random_state=0):
+                               metodo="balanced", n_iter=20, random_state=0, cv_repeticiones=1):
     """
     Searches for the best hyperparameters via cross-validation, using one of
     three speed/quality presets:
@@ -430,7 +437,7 @@ def optimizar_hiperparametros(modelo, grilla, X, y, es_clasificacion, cv=5,
         return modelo, {}, None, "None (this model has no tunable hyperparameters)"
 
     scoring = "balanced_accuracy" if es_clasificacion else "r2"
-    splitter, cv_real = construir_particionador(cv, y, es_clasificacion, random_state)
+    splitter, cv_real = construir_particionador(cv, y, es_clasificacion, random_state, cv_repeticiones)
     n_muestras = X.shape[0]
     # Successive halving needs enough samples to shrink across rounds in a
     # meaningful way; below this size it degrades to a fallback plain search.
@@ -1345,6 +1352,11 @@ def interpretar_comparacion_modelos(pvalores, puntajes, alpha=0.05):
     return {"hay_diferencias": True, "mensajes": hallazgos}
 
 
+def contraparte_train(metrica):
+    """Name of the training column that goes with a '(test)' metric (RMSEP (test) -> RMSE (train))."""
+    return metrica.replace("RMSEP (test)", "RMSE (train)").replace("(test)", "(train)")
+
+
 def remuestreo_train_test(modelo, X, y, es_clasificacion, n_rep=20, prop_test=0.25, random_state=0, metodo="holdout"):
     """
     Repeats a random train/test split `n_rep` times (stratified for classification),
@@ -1390,8 +1402,9 @@ def remuestreo_train_test(modelo, X, y, es_clasificacion, n_rep=20, prop_test=0.
         m = clone(modelo)
         m.fit(X[tr], y[tr])
         pred = m.predict(X[te]); pred_tr = m.predict(X[tr])
+        _n = {"n_train": int(len(np.unique(tr))), "n_test": int(len(te))}
         if es_clasificacion:
-            filas.append({"split": i + 1,
+            filas.append({"split": i + 1, **_n,
                           "Balanced accuracy (test)": balanced_accuracy_score(y[te], pred),
                           "Accuracy (test)": accuracy_score(y[te], pred),
                           "F1 (macro) (test)": f1_score(y[te], pred, average="macro", zero_division=0),
@@ -1399,7 +1412,7 @@ def remuestreo_train_test(modelo, X, y, es_clasificacion, n_rep=20, prop_test=0.
                           "Accuracy (train)": accuracy_score(y[tr], pred_tr),
                           "F1 (macro) (train)": f1_score(y[tr], pred_tr, average="macro", zero_division=0)})
         else:
-            filas.append({"split": i + 1,
+            filas.append({"split": i + 1, **_n,
                           "R² (test)": r2_score(y[te], pred),
                           "RMSEP (test)": float(np.sqrt(mean_squared_error(y[te], pred))),
                           "R² (train)": r2_score(y[tr], pred_tr),

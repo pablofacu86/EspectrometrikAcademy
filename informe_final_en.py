@@ -584,13 +584,14 @@ def _b_remuestreo(ss, pref):
                + ". The model was refitted on every split.")
     b.append({"tipo": "parrafo", "texto": txt + " Values are mean +/- standard deviation over the repetitions"
                                               + (" and the 95% interval (2.5-97.5 percentiles)." if boot else ".")})
-    _cols = [c for c in next(iter(res.values())).columns if c != "split"]
+    _cols = [c for c in next(iter(res.values())).columns if c not in ("split", "n_train", "n_test")]
     _te = [c for c in _cols if c.endswith("(test)")] or _cols
     metricas = _te + [c for c in _cols if c.endswith("(train)")]
-    enc = ["Model"] + [m + (" (mean +/- SD; 95% CI)" if (boot and m in _te) else " (mean +/- SD)") for m in metricas]
+    enc = ["Model", "Repetitions", "n train / n test (mean)"] + [m + (" (mean +/- SD; 95% CI)" if (boot and m in _te) else " (mean +/- SD)") for m in metricas]
     filas = []
     for nm, df in res.items():
-        f = [nm]
+        _ntr = f"{df['n_train'].mean():.0f} / {df['n_test'].mean():.0f}" if "n_train" in df.columns else "n/a"
+        f = [nm, str(len(df)), _ntr]
         for m in metricas:
             t = f"{df[m].mean():.3f} +/- {df[m].std(ddof=1):.3f}"
             if boot and m in _te:
@@ -598,7 +599,8 @@ def _b_remuestreo(ss, pref):
             f.append(t)
         filas.append(f)
     b.append({"tipo": "tabla", "encabezados": enc, "filas": filas})
-    b.append({"tipo": "imagen", "fig": ru.fig_remuestreo(res, metricas[0]), "ancho_mm": 130})
+    for _mt in (_te[:2] if "R² (test)" in _te else _te[:1]):
+        b.append({"tipo": "imagen", "fig": ru.fig_remuestreo(res, _mt), "ancho_mm": 130})
     medias = {nm: float(df[metricas[0]].mean()) for nm, df in res.items()}
     sds = {nm: float(df[metricas[0]].std(ddof=1)) for nm, df in res.items()}
     ord_ = sorted(medias, key=medias.get, reverse=True)

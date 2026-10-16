@@ -821,12 +821,14 @@ def _ui_remuestreo(pref, modelos, X, y, es_clf, prop_default=0.25):
         st.error(f"Resampling failed: {st.session_state[f'{pref}_rs_err']}")
     res = st.session_state.get(f"{pref}_rs_res")
     if res:
-        _cols = [c for c in next(iter(res.values())).columns if c != "split"]
+        _cols = [c for c in next(iter(res.values())).columns if c not in ("split", "n_train", "n_test")]
         metricas_te = [c for c in _cols if c.endswith("(test)")] or _cols
         metricas_tr = [c for c in _cols if c.endswith("(train)")]
         filas = []
         for nm, df in res.items():
-            fila = {"Model": nm}
+            fila = {"Model": nm, T("Repetitions"): len(df)}
+            if "n_train" in df.columns:
+                fila[T("n train / n test (mean)")] = f"{df['n_train'].mean():.0f} / {df['n_test'].mean():.0f}"
             for c in metricas_te + metricas_tr:
                 fila[T(c)] = f"{df[c].mean():.3f} ± {df[c].std(ddof=1):.3f}"
                 if st.session_state.get(f"{pref}_rs_boot") and c in metricas_te:
@@ -835,16 +837,21 @@ def _ui_remuestreo(pref, modelos, X, y, es_clf, prop_default=0.25):
         _dfm = pd.DataFrame(filas).rename(columns={"Model": T("Model")})
         st.dataframe(_dfm, hide_index=True, width="stretch")
         st.caption(T("**(test)** = samples left out of each fit: the honest estimate. **(train)** = samples used to fit the model. "
-                     "If train is much better than test, the model is overfitting."))
-        principal = metricas_te[0]
-        principal_tr = principal.replace("(test)", "(train)")
+                     "If train is much better than test, the model is overfitting. "
+                     "**Value ± value = mean ± ONE standard deviation (SD)** of the repetitions (not 2 SD). Roughly 95 % of the repetitions "
+                     "fall within mean ± 2 SD. **n train / n test** = number of samples used to fit / to test in each repetition (average)."))
+        principal = st.selectbox(T("Metric shown in the plot"), metricas_te, index=0, key=f"{pref}_rs_metrica_plot",
+                                 format_func=lambda c: T(c),
+                                 help=T("Pick which metric the box plot shows (for regression, R² or the error RMSEP). "
+                                        "The training counterpart is drawn next to it."))
+        principal_tr = mu.contraparte_train(principal)
         fig = go.Figure()
         for etq, col, color in ((T("Test"), principal, "#185FA5"), (T("Training"), principal_tr, "#E8A33D")):
             if all(col in df.columns for df in res.values()):
                 fig.add_trace(go.Box(x=[nm for nm, df in res.items() for _ in range(len(df))],
                                      y=[v for df in res.values() for v in df[col]], name=etq, boxpoints="all",
                                      jitter=0.4, pointpos=0, marker=dict(size=4, color=color), line=dict(color=color)))
-        _met_nombre = principal.replace(" (test)", "")
+        _met_nombre = T(principal.replace(" (test)", ""))
         fig.update_layout(height=360, boxmode="group", showlegend=True, yaxis_title=_met_nombre,
                           title=dict(text=f"{_met_nombre} — {len(next(iter(res.values())))} " + T("bootstrap repetitions" if st.session_state.get(f"{pref}_rs_boot") else "random splits"), x=0.01))
         st.plotly_chart(fig, width="stretch")
@@ -4719,6 +4726,16 @@ if _abierta(tabs[12]):
                              "explanation below once you pick one.",
                     key="ac_clf_preset")
                     metodo_opt = PRESETS_OPTIMIZACION[preset_opt][0]
+                    st.selectbox(
+                        "CV repetitions in the optimization", [1, 3, 5], index=0, disabled=not optimizar, key="cv_rep_clf",
+                        help="How many times the k-fold cross-validation is repeated (with different random fold assignments) "
+                             "to score EACH combination of hyperparameters. More repetitions = a less noisy, more robust choice "
+                             "(especially with few samples), but proportionally slower. It only reshuffles the TRAINING samples "
+                             "between folds: the independent test set is never touched, so there is no leakage into the test.")
+                    if optimizar:
+                        st.caption("ℹ️ Hyperparameters are chosen by cross-validation INSIDE the training set; the test set is not used to "
+                                   "choose anything. Do not pick the random seed of the train/test split by its result: that would "
+                                   "overfit to the test set.")
                     gu.pros_cons("optimizacion", preset_opt, key="pc_opt_clf")
                     st.caption("The ranges explored are shown (and editable) in the **🎛️ Hyperparameters** tab.")
                     cfg_aug = _ui_aumento("clf", True)
@@ -4882,6 +4899,7 @@ if _abierta(tabs[12]):
                                         modelo, _grilla_activa(nombre, True, X_sel[_idx_tr_clf], clases_activas[_idx_tr_clf], 0.0, cv_folds),
                                         X_sel[_idx_tr_clf], clases_activas[_idx_tr_clf],
                                         es_clasificacion=True, cv=cv_folds, metodo=metodo_opt,
+                                        cv_repeticiones=int(st.session_state.get("cv_rep_clf", 1)),
                                     )
                                     hiperparametros_optimos[nombre] = mejores_params
                                     descripcion_opt_usada[nombre] = desc_opt
@@ -5786,6 +5804,16 @@ if _abierta(tabs[14]):
                              "explanation below once you pick one.",
                     )
                     metodo_opt_r = PRESETS_OPTIMIZACION[preset_opt_r][0]
+                    st.selectbox(
+                        "CV repetitions in the optimization", [1, 3, 5], index=0, disabled=not optimizar_r, key="cv_rep_reg",
+                        help="How many times the k-fold cross-validation is repeated (with different random fold assignments) "
+                             "to score EACH combination of hyperparameters. More repetitions = a less noisy, more robust choice "
+                             "(especially with few samples), but proportionally slower. It only reshuffles the TRAINING samples "
+                             "between folds: the independent test set is never touched, so there is no leakage into the test.")
+                    if optimizar_r:
+                        st.caption("ℹ️ Hyperparameters are chosen by cross-validation INSIDE the training set; the test set is not used to "
+                                   "choose anything. Do not pick the random seed of the train/test split by its result: that would "
+                                   "overfit to the test set.")
                     gu.pros_cons("optimizacion", preset_opt_r, key="pc_opt_reg")
                     st.caption("The ranges explored are shown (and editable) in the **🎛️ Hyperparameters** tab.")
                     cfg_aug_r = _ui_aumento("reg", False)
@@ -5941,6 +5969,7 @@ if _abierta(tabs[14]):
                                     modelo, mejores_params_r, _, desc_opt_r = mu.optimizar_hiperparametros(
                                         modelo, _grilla_activa(nombre, False, X_sel_r[_idx_tr_reg], y_reg[_idx_tr_reg], 0.0, cv_folds_r), X_sel_r[_idx_tr_reg], y_reg[_idx_tr_reg],
                                         es_clasificacion=False, cv=cv_folds_r, metodo=metodo_opt_r,
+                                        cv_repeticiones=int(st.session_state.get("cv_rep_reg", 1)),
                                     )
                                     hiperparametros_optimos_r[nombre] = mejores_params_r
                                     descripcion_opt_usada_r[nombre] = desc_opt_r
